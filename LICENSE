@@ -1,16 +1,21 @@
-MIT License
+LicenseRef-ZAI-ONE
 
-Copyright (c) 2026 Nikita Zhidkov, Aleksandr / zai-one
+Copyright (c) 2026 Aleksandr / ZAI.ONE
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software is not licensed under MIT or any other open-source license.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+You may clone, install, and run this software locally against YOUR OWN
+Telegram Ads cabinet (ads.telegram.org) for your own use.
+
+You may not:
+- copy, publish, redistribute, sublicense, or sell this software
+- create derivative works, remixes, or independent public forks
+- use this source to publish a competing MCP server or package
+
+If something is missing or broken, open a GitHub Issue on
+https://github.com/zai-one/telegram-ads-mcp
+The copyright holder may implement the change in this repository.
+Support is not guaranteed.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

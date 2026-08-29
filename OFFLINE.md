@@ -4,11 +4,11 @@ Pushed as **0.2.0** on `master` (`de455b5` + local Gram parse fixes). Topics set
 
 Read-only Gram pass: header widget in **Gram**, `currency-ton`, user-geo ads (`trg_type=user`). **Not EUR.** Mutations still need an operator.
 
-Do remaining write checks on your machine against that **TON/Gram** cabinet. Never paste cookies.
+Do remaining write checks on your machine against that **Gram** cabinet. Never paste cookies.
 
 ## Live checks
 
-1. **`uvx --from git+https://github.com/zai-one/telegram-ads-mcp tg-ads-mcp`** — confirm the wheel starts (stdio). Put cookies in `.env`, Claude/Cursor config as in README (no `STEL_*` in the MCP `env` block).
+1. **`uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp`** — confirm the wheel starts (stdio). Prefer clone + `uv --directory ABS_PATH run telegram-ads-mcp` so `.env` is found. Claude/Cursor config as in INSTALL.md (no `STEL_*` in the MCP `env` block).
 2. **`get_account` balance** — Gram header widget (`js-header_owner_budget`). Must not report `cabinet: eur` on a Gram cabinet.
 3. **`get_ad`** — look at `source` (`getAd` / `html` / `getAdsList`).
 4. **`upload_media`** — 16:9 JPEG <5 MB and MP4 3–60s. Note which `/file/upload` `target` the platform accepts (`media` / `adMedia` / `ad_media` / `picture`); we should pin it.

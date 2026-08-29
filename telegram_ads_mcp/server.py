@@ -211,8 +211,8 @@ async def select_account(owner_id: str) -> dict[str, Any]:
                 "code": "stars_cabinet",
                 "cabinet": "stars",
                 "owner_id": owner_id,
-                "error": "Stars cabinet selected. This server refuses to run ads on Stars. Pick a TON or EUR cabinet.",
-                "accounts_hint": "Call list_accounts and select_account with a TON/EUR owner_id.",
+                "error": "Stars cabinet selected. This server refuses to run ads on Stars. Pick a Gram or EUR cabinet.",
+                "accounts_hint": "Call list_accounts and select_account with a Gram/EUR owner_id.",
             }
         return info
     except (AuthError, ConfigError, StarsCabinetError) as exc:
@@ -221,7 +221,7 @@ async def select_account(owner_id: str) -> dict[str, Any]:
 
 @mcp.tool(annotations=READ)
 async def get_account() -> dict[str, Any]:
-    """Current cabinet card: owner_id, ton/eur/stars, currency, balance."""
+    """Current cabinet card: owner_id, cabinet, currency (GRAM/EUR), balance."""
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return err
@@ -312,7 +312,7 @@ async def create_ad(
     schedule_tz: str | None = None,
     schedule_tz_custom: str | None = None,
 ) -> dict[str, Any]:
-    """Create an ad. TON/Gram allows channels, bots, search, and users (geo). EUR too.
+    """Create an ad. Gram cabinets allow channels, bots, search, and users (geo). EUR too.
 
     Always create on_hold. Budget "0" cannot go to review. IDs are semicolon-separated.
     Search ads: do not pass text/picture/media.
@@ -693,7 +693,7 @@ async def search_targets(
 async def get_targeting_reference(
     kind: Literal["user", "channel", "both"] = "both",
 ) -> dict[str, Any]:
-    """Countries / languages / topics for user-geo (TON Gram cabinets have this too) plus channel taxonomies.
+    """Countries / languages / topics for user-geo (Gram cabinets have this too) plus channel taxonomies.
 
     Stars cabinets never reach this tool. Empty lists mean the form did not embed that taxonomy.
     """
@@ -817,7 +817,7 @@ async def manage_funds(
     query: str | None = None,
     additional_comment: str = "",
 ) -> dict[str, Any]:
-    """Funds. Currency follows the cabinet (Gram on TON, EUR on EUR) — amount is a string.
+    """Funds. Currency follows the cabinet (Gram or EUR) — amount is a string.
 
     action=add (top-up request), transfer, withdraw, search (find a cabinet), list (linked cabinets).
     """

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.zai-one/telegram-ads-mcp",
+  "title": "Telegram Ads",
+  "description": "Unofficial MCP for ads.telegram.org. Currency is Gram.",
+  "version": "0.2.0",
+  "websiteUrl": "https://github.com/zai-one/telegram-ads-mcp/blob/master/INSTALL.md",
+  "repository": {
+    "url": "https://github.com/zai-one/telegram-ads-mcp",
+    "source": "github",
+    "id": "1350425231"
+  }
+}

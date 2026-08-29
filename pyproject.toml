@@ -7,7 +7,7 @@ name = "telegram-ads-mcp"
 version = "0.2.0"
 description = "MCP server for Telegram Ads. Currency is Gram. Built by ZAI.ONE."
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "LicenseRef-ZAI-ONE" }
 requires-python = ">=3.10"
 authors = [{ name = "Aleksandr / zai-one" }]
 keywords = [
@@ -16,7 +16,6 @@ keywords = [
     "telegram",
     "telegram-ads",
     "advertising",
-    "ton",
     "gram",
     "ai-agents",
     "llm",
@@ -25,7 +24,7 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -50,6 +49,8 @@ test = ["pytest>=8", "pytest-asyncio>=0.24", "jsonschema>=4"]
 Homepage = "https://github.com/zai-one/telegram-ads-mcp"
 Repository = "https://github.com/zai-one/telegram-ads-mcp"
 Issues = "https://github.com/zai-one/telegram-ads-mcp/issues"
+Documentation = "https://github.com/zai-one/telegram-ads-mcp/blob/master/INSTALL.md"
+Playbook = "https://github.com/zai-one/telegram-ads-mcp/blob/master/AGENTS.md"
 Changelog = "https://github.com/zai-one/telegram-ads-mcp/blob/master/CHANGELOG.md"
 
 [project.scripts]

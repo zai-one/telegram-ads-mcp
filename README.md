@@ -1,3 +1,4 @@
+<!-- mcp-name: io.github.zai-one/telegram-ads-mcp -->
 <p align="center">
   <a href="README.md">🇬🇧</a>
   &nbsp;·&nbsp;
@@ -13,7 +14,7 @@
   <a href="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml"><img src="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-555555" alt="MCP 2.x"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-proprietary-lightgrey" alt="LicenseRef-ZAI-ONE"></a>
   <a href="https://zai.one"><img src="https://img.shields.io/badge/built%20by-ZAI.ONE-111111" alt="ZAI.ONE"></a>
   <a href="https://github.com/zai-one/telegram-ads-mcp/stargazers"><img src="https://img.shields.io/github/stars/zai-one/telegram-ads-mcp?style=social" alt="GitHub stars"></a>
 </p>
@@ -59,7 +60,7 @@ cp .env.example .env    # stel_token + stel_ssid from ads.telegram.org cookies
 }
 ```
 
-Agent setup (clone, config, **star**): copy [INSTALL.md](INSTALL.md) into the chat.
+Agent setup (clone, config, **star**): copy [INSTALL.md](INSTALL.md) into the chat. Command: `telegram-ads-mcp` (alias `tg-ads-mcp`). After connect: `ads://playbook`. Prompts: `launch-campaign`, `review-account`, `diagnose-ad`. Client file names are in INSTALL.md (Cursor, Claude, VS Code `servers`, Codex TOML). Do not put cookies in MCP `env`.
 
 HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --port 8000` → `http://127.0.0.1:8000/mcp`.
 
@@ -75,9 +76,9 @@ HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --po
 
 Always create ads `on_hold`. `budget="0"` cannot go to review. Amounts are Gram strings. Search ads: no text / picture / media.
 
-## Issues — don’t fork
+## Issues
 
-Please **don’t fork** this repo. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). I will change **this** server.
+I'm working on this. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). I will patch **this** repo.
 
 Use the form. Tick “no cookies”. Never paste `stel_token`, `stel_ssid`, `.env`, hashes, or DevTools screenshots.
 
@@ -85,36 +86,6 @@ Support is **not guaranteed**. Issues are read when I can.
 
 Need **EUR** or **Stars** cabinets (not live here)? Write on Telegram: [t.me/zai_one](https://t.me/zai_one). We can talk about access. Do not send cookies in the GitHub issue.
 
-## Contributors
-
-<table>
-  <tr>
-    <td align="center" width="140">
-      <a href="https://github.com/zai-one">
-        <img src="https://github.com/zai-one.png?size=160" width="80" alt="zai-one"><br>
-        <sub><strong>Aleksandr</strong></sub>
-      </a><br>
-      <sub>ZAI.ONE · maintainer</sub>
-    </td>
-    <td align="center" width="140">
-      <a href="https://github.com/xai-org">
-        <img src="https://github.com/xai-org.png?size=160" width="80" alt="Grok"><br>
-        <sub><strong>Grok</strong></sub>
-      </a><br>
-      <sub>xAI · implementation</sub>
-    </td>
-    <td align="center" width="140">
-      <a href="https://github.com/openai">
-        <img src="https://github.com/openai.png?size=160" width="80" alt="Codex"><br>
-        <sub><strong>Codex 5.6</strong></sub>
-      </a><br>
-      <sub>OpenAI · implementation</sub>
-    </td>
-  </tr>
-</table>
-
-The GitHub Contributors graph only lists git commit authors. Grok (xAI) and Codex 5.6 are credited here because they write the code.
-
 [ZAI.ONE](https://zai.one) · [contact@zai.one](mailto:contact@zai.one) · [Telegram](https://t.me/zai_one)
 
-MIT · [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · please don’t fork, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose)
+LicenseRef-ZAI-ONE · [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose)

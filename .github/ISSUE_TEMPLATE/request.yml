@@ -6,11 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Support is **not guaranteed**. I will read issues and improve the server when I can.
+        I'm working on this. Support is **not guaranteed**. I will read issues and improve the server when I can.
 
         **Do not paste** `stel_token`, `stel_ssid`, `.env`, API hashes, or DevTools screenshots.
 
-        Prefer **not to fork**. Describe the need here — I will patch this repo.
+        Describe the need here — I will patch this repo.
 
         Need EUR or Stars? Message https://t.me/zai_one and we can talk about access. Do not put those cookies in this form.
   - type: checkboxes

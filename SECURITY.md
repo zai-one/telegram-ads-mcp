@@ -9,3 +9,4 @@
 - This project scrapes an unofficial web API. Telegram may invalidate sessions, change HTML, or restrict accounts. Use at your own risk; follow the [Ad Guidelines](https://ads.telegram.org/guidelines) and [Terms](https://ads.telegram.org/tos).
 - Stars cabinets are refused by HTML heuristics. We do not have a Stars cabinet, so that path is not live-tested.
 - Cabinet money is **Gram**. `target_type=users` is valid. Do not call the currency TON.
+- License is LicenseRef-ZAI-ONE (not MIT). Run against your own cabinet. File issues; do not copy or remix.

@@ -240,7 +240,7 @@ class TelegramAdsClient:
         info = await self.detect_cabinet()
         if info.get("cabinet") == "stars":
             raise StarsCabinetError(
-                "Stars cabinet detected. This server only supports TON (primary) and EUR cabinets. "
+                "Stars cabinet detected. This server only supports Gram (primary) and EUR cabinets. "
                 "Call list_accounts / select_account to switch away from Stars."
             )
         return info
