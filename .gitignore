@@ -1,4 +1,5 @@
 .env
+VERIFY.md
 .venv/
 __pycache__/
 *.pyc

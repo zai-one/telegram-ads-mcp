@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tg-ads-mcp"
+name = "telegram-ads-mcp"
 version = "0.2.0"
-description = "MCP server for Telegram Ads (TON + EUR). Stars cabinets are detected and refused."
+description = "MCP server for Telegram Ads. TON cabinets bill in Gram; EUR works; Stars are refused. Built by ZAI.ONE."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -17,8 +17,10 @@ keywords = [
     "telegram-ads",
     "advertising",
     "ton",
+    "gram",
     "ai-agents",
     "llm",
+    "zai",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -45,18 +47,20 @@ dependencies = [
 test = ["pytest>=8", "pytest-asyncio>=0.24", "jsonschema>=4"]
 
 [project.urls]
-Homepage = "https://github.com/zai-one/tg-ads-mcp"
-Repository = "https://github.com/zai-one/tg-ads-mcp"
-Issues = "https://github.com/zai-one/tg-ads-mcp/issues"
-Changelog = "https://github.com/zai-one/tg-ads-mcp/blob/master/CHANGELOG.md"
+Homepage = "https://github.com/zai-one/telegram-ads-mcp"
+Repository = "https://github.com/zai-one/telegram-ads-mcp"
+Issues = "https://github.com/zai-one/telegram-ads-mcp/issues"
+Changelog = "https://github.com/zai-one/telegram-ads-mcp/blob/master/CHANGELOG.md"
 
 [project.scripts]
-tg-ads-mcp = "tg_ads_mcp.server:main"
+telegram-ads-mcp = "telegram_ads_mcp.server:main"
+tg-ads-mcp = "telegram_ads_mcp.server:main"
 
 [tool.setuptools.packages.find]
-include = ["tg_ads_mcp*"]
+include = ["telegram_ads_mcp*", "tg_ads_mcp*"]
 
 [tool.setuptools.package-data]
+telegram_ads_mcp = ["py.typed", "AGENTS.md"]
 tg_ads_mcp = ["py.typed"]
 
 [tool.pytest.ini_options]

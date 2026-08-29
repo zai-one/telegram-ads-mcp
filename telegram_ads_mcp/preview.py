@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-log = logging.getLogger("tg_ads_mcp.preview")
+log = logging.getLogger("telegram_ads_mcp.preview")
 
 DEFAULT_DIR = Path(os.environ.get("TG_ADS_PREVIEW_DIR", "previews")).resolve()
 

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
@@ -13,24 +14,28 @@ from urllib.parse import urljoin
 import anyio
 import httpx
 
-from tg_ads_mcp.parse import (
+from telegram_ads_mcp.parse import (
+    chart_spend_scale,
     detect_cabinet,
     derived_metrics,
     extract_api_hash,
     extract_balance,
     extract_json_value,
     extract_owner_id,
+    has_currency_marker,
+    normalize_ad,
     parse_accounts,
     parse_chart,
     redact,
+    scale_chart_spend,
     strip_empty,
     unescape_names,
 )
 
-log = logging.getLogger("tg_ads_mcp.client")
+log = logging.getLogger("telegram_ads_mcp.client")
 
 BASE_URL = "https://ads.telegram.org"
-USER_AGENT = "tg-ads-mcp/0.2.0"
+USER_AGENT = "telegram-ads-mcp/0.2.0"
 
 
 class AuthError(Exception):
@@ -68,6 +73,8 @@ class TelegramAdsClient:
         self._user_targeting_ref: dict[str, Any] | None = None
         self._channel_targeting_ref: dict[str, Any] | None = None
         self._account_html: str | None = None
+        self._ads_list_cache: tuple[float, str | None, dict[str, Any]] | None = None
+        self._getad_broken = False
         cookies: dict[str, str] = {
             "stel_token": stel_token,
             "stel_ssid": stel_ssid,
@@ -165,6 +172,8 @@ class TelegramAdsClient:
         self._user_targeting_ref = None
         self._channel_targeting_ref = None
         self._account_html = None
+        self._ads_list_cache = None
+        self._getad_broken = False
         log.info("selected account %s (status %s)", owner_id, resp.status_code)
 
     async def authenticate(self) -> dict[str, Any]:
@@ -218,8 +227,12 @@ class TelegramAdsClient:
             resp = await self._get_html("/account", follow_redirects=True)
             account_html = resp.text
             self._account_html = account_html
-        new_resp = await self._get_html("/account/ad/new", follow_redirects=True)
-        self._cabinet = detect_cabinet(account_html, new_resp.text)
+        new_html = ""
+        # Skip /account/ad/new when /account already has currency-ton / Gram / euro / XTR.
+        if not has_currency_marker(account_html):
+            new_resp = await self._get_html("/account/ad/new", follow_redirects=True)
+            new_html = new_resp.text
+        self._cabinet = detect_cabinet(account_html, new_html)
         log.info("cabinet=%s currency=%s", self._cabinet.get("cabinet"), self._cabinet.get("currency"))
         return self._cabinet
 
@@ -236,19 +249,28 @@ class TelegramAdsClient:
         await self._ensure_auth()
         cabinet = await self.detect_cabinet()
         html = self._account_html or ""
-        budget_html = ""
-        try:
-            budget_resp = await self._get_html("/account/budget", follow_redirects=True)
-            if budget_resp.status_code == 200:
-                budget_html = budget_resp.text
-        except Exception as exc:  # noqa: BLE001 — budget page is optional
-            log.debug("budget page failed: %s", exc)
-        balance = extract_balance(budget_html) or extract_balance(html)
-        for key in ("balance", "accountBalance", "funds"):
-            val = extract_json_value(budget_html or html, key)
-            if val is not None and balance is None:
-                balance = str(val)
-                break
+        balance = extract_balance(html)
+        if balance is None:
+            for key in ("balance", "accountBalance", "funds"):
+                val = extract_json_value(html, key)
+                if val is not None:
+                    balance = str(val)
+                    break
+        # Extra /account/budget round-trip only when the account page has no widget/JSON.
+        if balance is None:
+            try:
+                budget_resp = await self._get_html("/account/budget", follow_redirects=True)
+                if budget_resp.status_code == 200:
+                    budget_html = budget_resp.text
+                    balance = extract_balance(budget_html)
+                    if balance is None:
+                        for key in ("balance", "accountBalance", "funds"):
+                            val = extract_json_value(budget_html, key)
+                            if val is not None:
+                                balance = str(val)
+                                break
+            except Exception as exc:  # noqa: BLE001 — budget page is optional
+                log.debug("budget page failed: %s", exc)
         return {
             "ok": True,
             "owner_id": self.owner_id,
@@ -268,6 +290,8 @@ class TelegramAdsClient:
         keep: set[str] | None = None,
     ) -> dict[str, Any]:
         await self._ensure_auth()
+        if method not in {"getAdsList", "getAd"}:
+            self._ads_list_cache = None
         data: dict[str, Any] = {"method": method}
         if params:
             data.update(strip_empty(params, keep=keep))
@@ -294,94 +318,127 @@ class TelegramAdsClient:
         return result
 
     async def get_ads_list(self, offset_id: str | None = None) -> dict[str, Any]:
-        return await self.call("getAdsList", {"owner_id": self.owner_id, "offset_id": offset_id})
+        now = time.monotonic()
+        cached = self._ads_list_cache
+        if cached and cached[1] == offset_id and now - cached[0] < 30:
+            return cached[2]
+        result = await self.call("getAdsList", {"owner_id": self.owner_id, "offset_id": offset_id})
+        items = result.get("items") or result.get("ads") or []
+        if isinstance(result, dict) and isinstance(items, list):
+            result = dict(result)
+            result["items"] = [normalize_ad(i) if isinstance(i, dict) else i for i in items]
+        self._ads_list_cache = (now, offset_id, result)
+        return result
 
     async def get_ad(self, ad_id: str) -> dict[str, Any]:
-        # Prefer the JSON method; fall back to the ad page and the list.
-        try:
-            result = await self.call("getAd", {"owner_id": self.owner_id, "ad_id": ad_id})
-            if isinstance(result, dict) and not result.get("error"):
-                return {"ok": True, "ad": result, "source": "getAd"}
-        except Exception as exc:  # noqa: BLE001
-            log.debug("getAd method failed: %s", exc)
+        # Live Gram cabinets return HTTP 400 for getAd; remember and skip.
+        if not self._getad_broken:
+            try:
+                result = await self.call("getAd", {"owner_id": self.owner_id, "ad_id": ad_id})
+                if isinstance(result, dict) and not result.get("error"):
+                    ad = result.get("ad") if isinstance(result.get("ad"), dict) else result
+                    return {"ok": True, "ad": normalize_ad(ad) if isinstance(ad, dict) else ad, "source": "getAd"}
+                self._getad_broken = True
+            except Exception as exc:  # noqa: BLE001
+                self._getad_broken = True
+                log.debug("getAd method failed: %s", exc)
 
         resp = await self._get_html(f"/account/ad/{ad_id}", follow_redirects=True)
         if resp.status_code == 200:
             html = resp.text
             ad_state = extract_json_value(html, "ad") or extract_json_value(html, "adInfo")
             if isinstance(ad_state, dict):
-                return {"ok": True, "ad": ad_state, "source": "html"}
+                return {"ok": True, "ad": normalize_ad(ad_state), "source": "html"}
 
         listing = await self.get_ads_list()
         items = listing.get("items") or listing.get("ads") or []
         for item in items:
             if str(item.get("ad_id") or item.get("id")) == str(ad_id):
-                return {"ok": True, "ad": item, "source": "getAdsList"}
+                return {"ok": True, "ad": normalize_ad(item) if isinstance(item, dict) else item, "source": "getAdsList"}
         return {"ok": False, "error": f"Ad {ad_id} not found", "ad_id": ad_id}
 
     async def get_ad_stats(self, ad_id: str, period: str = "5min") -> dict[str, Any]:
         await self._ensure_auth()
-        resp = await self._get_html(f"/account/ad/{ad_id}/stats?period={period}", follow_redirects=True)
-        if resp.status_code != 200:
-            return {"ok": False, "error": f"HTTP {resp.status_code}", "ad_id": ad_id}
-        html = resp.text
-        charts: dict[str, Any] = {}
-        mapping = {
-            "chart_count_stats_wrap": "counts",
-            "chart_budget_stats_wrap": "budget",
-        }
-        for html_key, result_key in mapping.items():
-            parsed = parse_chart(html, html_key)
-            if parsed:
-                charts[result_key] = parsed
-        if not charts:
-            return {
-                "ok": False,
-                "error": "Could not parse stats charts from the page (layout may have changed).",
-                "ad_id": ad_id,
-                "period": period,
-            }
-        counts = charts.get("counts") or {}
-        totals = counts.get("totals") or {}
-        interval = counts.get("interval_seconds") or 0
-        ts = counts.get("timestamps") or []
-        if interval == 300:
-            label = "24h"
-        elif ts:
-            try:
-                span_days = (ts[-1] - ts[0]) / 1000 / 86400
-                label = f"{int(span_days)}d"
-            except (TypeError, ValueError):
-                label = "unknown"
-        else:
-            label = "unknown"
-        views = float(totals.get("Views") or 0)
-        clicks = float(totals.get("Clicks") or 0)
-        started = float(totals.get("Started bot") or 0)
-        spend_totals = (charts.get("budget") or {}).get("totals") or {}
-        spend = 0.0
-        for key, val in spend_totals.items():
-            if val is None:
-                continue
-            try:
-                spend = max(spend, float(val))
-            except (TypeError, ValueError):
-                continue
-        metrics = derived_metrics(views, clicks, spend)
-        return {
-            "ok": True,
+        fail = {
+            "ok": False,
+            "error": "Could not parse stats charts from the page (layout may have changed).",
             "ad_id": ad_id,
-            "charts": charts,
-            "summary": {
-                "period": label,
-                "interval_seconds": interval,
-                "views": views,
-                "clicks": clicks,
-                "started_bot": started,
-                "spend": spend,
-                **metrics,
-            },
+            "period": period,
         }
+        try:
+            resp = await self._get_html(f"/account/ad/{ad_id}/stats?period={period}", follow_redirects=True)
+            if resp.status_code != 200:
+                return {"ok": False, "error": f"HTTP {resp.status_code}", "ad_id": ad_id}
+            html = resp.text
+            charts: dict[str, Any] = {}
+            mapping = {
+                "chart_count_stats_wrap": "counts",
+                "chart_budget_stats_wrap": "budget",
+            }
+            for html_key, result_key in mapping.items():
+                parsed = parse_chart(html, html_key)
+                if parsed:
+                    charts[result_key] = parsed
+            if not charts:
+                return fail
+            counts = charts.get("counts") or {}
+            totals = counts.get("totals") if isinstance(counts.get("totals"), dict) else {}
+            interval = counts.get("interval_seconds") or 0
+            ts = counts.get("timestamps") or []
+            if interval == 300:
+                label = "24h"
+            elif ts:
+                try:
+                    span_days = (ts[-1] - ts[0]) / 1000 / 86400
+                    label = f"{int(span_days)}d"
+                except (TypeError, ValueError, IndexError):
+                    label = "unknown"
+            else:
+                label = "unknown"
+
+            def _num(value: Any) -> float:
+                try:
+                    return float(value or 0)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            views = _num(totals.get("Views"))
+            clicks = _num(totals.get("Clicks"))
+            started = _num(totals.get("Started bot"))
+            spend_totals = (charts.get("budget") or {}).get("totals") or {}
+            if not isinstance(spend_totals, dict):
+                spend_totals = {}
+            spend = 0.0
+            for _key, val in spend_totals.items():
+                if val is None:
+                    continue
+                try:
+                    spend = max(spend, float(val))
+                except (TypeError, ValueError):
+                    continue
+            scale = chart_spend_scale(html)
+            spend = scale_chart_spend(spend, scale)
+            metrics = derived_metrics(views, clicks, spend)
+            return {
+                "ok": True,
+                "ad_id": ad_id,
+                "charts": charts,
+                "summary": {
+                    "period": label,
+                    "interval_seconds": interval,
+                    "views": views,
+                    "clicks": clicks,
+                    "started_bot": started,
+                    "spend": spend,
+                    "spend_scale": scale,
+                    **metrics,
+                },
+            }
+        except AuthError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — stats must not crash the tool
+            log.debug("stats parse failed: %s", exc)
+            return fail
 
     async def get_user_targeting_reference(self) -> dict[str, Any]:
         if self._user_targeting_ref is not None:
@@ -475,6 +532,8 @@ class TelegramAdsClient:
         ad = got.get("ad") if isinstance(got, dict) else None
         if not isinstance(ad, dict):
             ad = {}
+        else:
+            ad = normalize_ad(ad)
         resp = await self._get_html(f"/account/ad/{ad_id}", follow_redirects=True)
         html = resp.text if resp.status_code == 200 else ""
         preview_url = None
@@ -507,7 +566,7 @@ class TelegramAdsClient:
             "ad_id": ad_id,
             "title": ad.get("title") or "",
             "text": ad.get("text") or "",
-            "promote_url": ad.get("promote_url") or ad.get("url") or "",
+            "promote_url": ad.get("promote_url") or ad.get("url") or ad.get("tme_path") or "",
             "cpm": ad.get("cpm"),
             "status": ad.get("active") or ad.get("status"),
             "picture": bool(ad.get("picture")),

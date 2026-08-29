@@ -1075,7 +1075,7 @@ wheels = [
 ]
 
 [[package]]
-name = "tg-ads-mcp"
+name = "telegram-ads-mcp"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [

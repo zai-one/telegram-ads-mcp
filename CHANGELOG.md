@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Rename: package/repo `telegram-ads-mcp` (GitHub `zai-one/telegram-ads-mcp`). Import `telegram_ads_mcp`. Script `telegram-ads-mcp`; `tg-ads-mcp` is a deprecated alias. Fork parent unchanged.
+- Ads-list 30s cache; skip `getAd` after the first HTTP 400. Redact `hash=` in logs. Ship `AGENTS.md` in the wheel. Prompt `review-account`.
+
+- Gram/TON live parse: header balance widget, `currency-ton` beats `value="users"` (not EUR).
+- `get_ads` status filter accepts live `Active` / `Stopped` as well as `1` / `0`.
+- `get_ad_stats` divides Gram chart spend by `1000000`.
+- `get_ad` / list map `tme_path` → `promote_url`, `trg_type` → `target_type`.
+- Skip extra `/account/budget` and `/account/ad/new` fetches when `/account` already has a currency widget.
+- `get_targeting_reference` works on TON Gram user-geo (not EUR-only).
+- `AGENTS.md` playbook + `CLAUDE.md` include. Tool count still ~25.
+- `create_ad` / `launch_ad` allow `target_type=users` on TON/Gram (no EUR-only refuse).
+- Leak tests: `.env` untracked; live cookie values must not appear in git files.
+- README: Built by ZAI.ONE (same voice as grok-build-mcp).
+
 ## 0.2.0 — 2026-08-29
 
 Rewrite on MCP Python SDK **2.1.x** (spec 2026-07-28).

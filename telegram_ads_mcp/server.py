@@ -15,11 +15,11 @@ from dotenv import load_dotenv
 from mcp.server import MCPServer
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 
-from tg_ads_mcp import __version__
-from tg_ads_mcp.client import AuthError, ConfigError, StarsCabinetError
-from tg_ads_mcp.parse import map_status, redact
-from tg_ads_mcp.preview import render_card
-from tg_ads_mcp.session import fail_payload, get_client, reload_from_env, switch_account
+from telegram_ads_mcp import __version__
+from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError
+from telegram_ads_mcp.parse import filter_ads_by_status, map_status, redact
+from telegram_ads_mcp.preview import render_card
+from telegram_ads_mcp.session import fail_payload, get_client, reload_from_env, switch_account
 
 load_dotenv()
 
@@ -39,27 +39,30 @@ class _RedactFilter(logging.Filter):
         return True
 
 _root.addFilter(_RedactFilter())
-log = logging.getLogger("tg_ads_mcp")
+log = logging.getLogger("telegram_ads_mcp")
 
-_PLAYBOOK = Path(__file__).resolve().parent.parent / "AGENTS.md"
+_PLAYBOOK_CANDIDATES = (
+    Path(__file__).resolve().parent / "AGENTS.md",
+    Path(__file__).resolve().parent.parent / "AGENTS.md",
+)
 
 READ = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
 DEST = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True)
 
 mcp = MCPServer(
-    name="tg-ads-mcp",
+    name="telegram-ads-mcp",
     title="Telegram Ads",
     version=__version__,
     instructions=(
-        "MCP server for ads.telegram.org. TON cabinets are primary, EUR is supported. "
+        "MCP server for ads.telegram.org. TON/Gram cabinets are primary (user-geo allowed). EUR is supported. "
         "Stars cabinets are detected and refused — switch with list_accounts/select_account. "
         "Cookies live in .env only (STEL_TOKEN, STEL_SSID). Never ask the user to paste cookies "
         "into chat; tell them to update .env and call reload_session. "
         "Always create ads on_hold, add budget, then send_target_to_review. "
         "Read ads://playbook at session start."
     ),
-    website_url="https://github.com/zai-one/tg-ads-mcp",
+    website_url="https://github.com/zai-one/telegram-ads-mcp",
 )
 
 
@@ -86,9 +89,10 @@ async def _client_or_fail(require_supported: bool = True):
 
 @mcp.resource("ads://playbook", mime_type="text/markdown")
 def playbook_resource() -> str:
-    """Agent playbook: auth, create-on-hold, budget, review, EUR targeting."""
-    if _PLAYBOOK.exists():
-        return _PLAYBOOK.read_text(encoding="utf-8")
+    """Agent playbook: auth, create-on-hold, budget, review, TON Gram user-geo."""
+    for path in _PLAYBOOK_CANDIDATES:
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
     return "AGENTS.md is missing from the install."
 
 
@@ -111,11 +115,24 @@ def launch_campaign_prompt(
     return (
         f"Launch a {target_type} ad promoting {promote_url}.\n"
         "1. check_session — if ok=false, tell the user to refresh .env cookies and reload_session.\n"
-        "2. get_account — confirm TON or EUR, read balance and currency. Abort on Stars.\n"
+        "2. get_account — confirm TON/Gram (or EUR), read balance and currency. Abort on Stars.\n"
         "3. search_targets to resolve IDs.\n"
         "4. check_ad_post on the promote_url + text.\n"
         "5. launch_ad (creates on_hold, adds budget, sends to review). Do not auto-activate.\n"
         "6. preview_ad and show the PNG to the user.\n"
+    )
+
+
+@mcp.prompt(name="review-account", description="Read-only morning pass: balance, live vs stopped ads, stats on a few problems.")
+def review_account_prompt() -> str:
+    return (
+        "Read-only review of the Telegram Ads cabinet. Do not create, edit, or spend.\n"
+        "1. get_account — expect cabinet=ton, currency=GRAM, a Gram balance. Abort if eur/stars misdetect.\n"
+        "2. get_ads(status=active) and get_ads(status=on_hold). Use list spent/views/ctr; do not fetch stats for every ad.\n"
+        "3. Pick at most 5 problem ads (Active with 0 views, or Stopped with leftover daily_budget, or CTR crash).\n"
+        "4. For each: get_ad_stats(period=5min) then period=day if needed. Compare summary.spend to list spent (same order of magnitude).\n"
+        "5. preview_ad only if copy might be the issue.\n"
+        "6. Recommend at most one change (pause xor CPM xor budget xor text). Wait for the user before any write.\n"
     )
 
 
@@ -234,8 +251,7 @@ async def get_ads(
     result = await client.get_ads_list(offset_id)
     items = list(result.get("items") or result.get("ads") or [])
     if status != "any":
-        want = "1" if status == "active" else "0"
-        items = [i for i in items if str(i.get("active") or i.get("status")) == want]
+        items = filter_ads_by_status(items, status)
         result = dict(result)
         result["items"] = items
         result["filtered_status"] = status
@@ -296,7 +312,7 @@ async def create_ad(
     schedule_tz: str | None = None,
     schedule_tz_custom: str | None = None,
 ) -> dict[str, Any]:
-    """Create an ad. TON: channels/bots/search. EUR also allows target_type=users.
+    """Create an ad. TON/Gram allows channels, bots, search, and users (geo). EUR too.
 
     Always create on_hold. Budget "0" cannot go to review. IDs are semicolon-separated.
     Search ads: do not pass text/picture/media.
@@ -305,13 +321,6 @@ async def create_ad(
     client, err = await _client_or_fail()
     if err:
         return err
-    cabinet = await client.detect_cabinet()
-    if target_type == "users" and cabinet.get("cabinet") != "eur":
-        return {
-            "ok": False,
-            "error": "target_type=users is EUR-cabinet only.",
-            "cabinet": cabinet.get("cabinet"),
-        }
     params: dict[str, Any] = {
         "owner_id": client.owner_id,
         "title": title,
@@ -442,7 +451,7 @@ async def edit_ad(
     if clear_media:
         keep.add("media")
     editable = {k: v for k, v in params.items() if k not in {"owner_id", "ad_id"}}
-    from tg_ads_mcp.parse import strip_empty
+    from telegram_ads_mcp.parse import strip_empty
 
     if strip_empty(editable, keep=keep) or keep:
         results["edit"] = await client.call("editAd", params, keep=keep or None)
@@ -684,19 +693,15 @@ async def search_targets(
 async def get_targeting_reference(
     kind: Literal["user", "channel", "both"] = "both",
 ) -> dict[str, Any]:
-    """EUR reference lists: countries/languages/topics (user) and channel topics/langs/conversion events.
+    """Countries / languages / topics for user-geo (TON Gram cabinets have this too) plus channel taxonomies.
 
-    TON cabinets return empty lists for EUR-only taxonomies.
+    Stars cabinets never reach this tool. Empty lists mean the form did not embed that taxonomy.
     """
     client, err = await _client_or_fail()
     if err:
         return err
     cabinet = await client.detect_cabinet()
-    out: dict[str, Any] = {"ok": True, "cabinet": cabinet["cabinet"]}
-    if cabinet["cabinet"] != "eur":
-        out["note"] = "User/channel-category taxonomies are EUR-only. TON uses explicit channel/bot/query IDs."
-        if kind != "channel":
-            return out
+    out: dict[str, Any] = {"ok": True, "cabinet": cabinet["cabinet"], "currency": cabinet.get("currency")}
     if kind in ("user", "both"):
         ref = await client.get_user_targeting_reference()
         out["user"] = {
@@ -743,7 +748,7 @@ async def manage_audience(
         path = file_path
         tmp = None
         if user_ids and not path:
-            from tg_ads_mcp.client import write_temp_ids
+            from telegram_ads_mcp.client import write_temp_ids
 
             tmp = await write_temp_ids(user_ids)
             path = tmp
@@ -812,7 +817,7 @@ async def manage_funds(
     query: str | None = None,
     additional_comment: str = "",
 ) -> dict[str, Any]:
-    """Funds. Currency follows the cabinet (TON on TON, EUR on EUR) — amount is a string.
+    """Funds. Currency follows the cabinet (Gram on TON, EUR on EUR) — amount is a string.
 
     action=add (top-up request), transfer, withdraw, search (find a cabinet), list (linked cabinets).
     """
@@ -883,7 +888,7 @@ async def log_out() -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="tg-ads-mcp")
+    parser = argparse.ArgumentParser(prog="telegram-ads-mcp")
     parser.add_argument(
         "--transport",
         choices=("stdio", "streamable-http", "sse"),
@@ -892,7 +897,7 @@ def main() -> None:
     parser.add_argument("--host", default=os.environ.get("MCP_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("MCP_PORT", "8000")))
     args = parser.parse_args()
-    log.info("starting tg-ads-mcp %s transport=%s", __version__, args.transport)
+    log.info("starting telegram-ads-mcp %s transport=%s", __version__, args.transport)
     if args.transport == "stdio":
         mcp.run(transport="stdio")
     else:

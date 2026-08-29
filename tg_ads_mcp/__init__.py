@@ -1,3 +1,6 @@
-"""MCP server for the Telegram Ads platform (TON + EUR cabinets)."""
+"""Deprecated import path. Use `telegram_ads_mcp`."""
 
-__version__ = "0.2.0"
+from telegram_ads_mcp import *  # noqa: F403
+from telegram_ads_mcp import __version__
+
+__all__ = ["__version__"]

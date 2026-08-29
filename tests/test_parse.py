@@ -1,13 +1,23 @@
-from tg_ads_mcp.parse import (
+from pathlib import Path
+
+from telegram_ads_mcp.parse import (
+    chart_spend_scale,
     derived_metrics,
     detect_cabinet,
+    extract_balance,
+    extract_currency,
     extract_json_value,
+    filter_ads_by_status,
     map_status,
+    normalize_ad,
     parse_accounts,
     parse_chart,
     redact,
+    scale_chart_spend,
     strip_empty,
 )
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 NESTED = r'{"topicItems":[{"val":1,"name":"A","kids":[1,2,3]},{"val":2,"name":"B"}]}'
@@ -41,11 +51,57 @@ def test_detect_stars_and_eur_and_ton() -> None:
     stars = detect_cabinet('"currency":"XTR"', "")
     assert stars["cabinet"] == "stars"
     assert stars["supported"] is False
-    eur = detect_cabinet("", '<input name="target_type" value="users">')
+    gram_account = (FIXTURES / "gram_account.html").read_text(encoding="utf-8")
+    gram_new = (FIXTURES / "gram_new_ad.html").read_text(encoding="utf-8")
+    gram = detect_cabinet(gram_account, gram_new)
+    assert gram["cabinet"] == "ton"
+    assert gram["currency"] == "GRAM"
+    assert gram["supported"] is True
+    assert gram["supports_user_targeting"] is True
+    # value="users" alone is NOT EUR — live TON/Gram forms include users.
+    users_only = detect_cabinet("", '<input name="target_type" value="users">')
+    assert users_only["cabinet"] != "eur"
+    eur = detect_cabinet((FIXTURES / "eur_account.html").read_text(encoding="utf-8"), "")
     assert eur["cabinet"] == "eur"
     assert eur["supports_user_targeting"] is True
     ton = detect_cabinet('<div>balance</div>', '<input name="target_type" value="channels">')
     assert ton["cabinet"] == "ton"
+
+
+def test_extract_gram_balance_and_currency() -> None:
+    html = (FIXTURES / "gram_account.html").read_text(encoding="utf-8")
+    assert extract_currency(html) == "GRAM"
+    assert extract_balance(html) == "12.00"
+
+
+def test_live_status_filter_and_normalize_ad() -> None:
+    items = [
+        {"ad_id": 35, "status": "Active", "trg_type": "user", "tme_path": "example_bot?start=x", "spent": 0.54},
+        {"ad_id": 33, "status": "Stopped", "trg_type": "user", "tme_path": "example_bot?start=y"},
+        {"ad_id": 1, "active": "1", "title": "wire-active"},
+        {"ad_id": 2, "active": "0", "title": "wire-hold"},
+    ]
+    active = filter_ads_by_status(items, "active")
+    hold = filter_ads_by_status(items, "on_hold")
+    assert {i["ad_id"] for i in active} == {35, 1}
+    assert {i["ad_id"] for i in hold} == {33, 2}
+    norm = normalize_ad(items[0])
+    assert norm["target_type"] == "users"
+    assert norm["promote_url"] == "https://t.me/example_bot?start=x"
+    assert norm["active"] == "1"
+
+
+def test_gram_chart_spend_scale() -> None:
+    html = (FIXTURES / "gram_stats.html").read_text(encoding="utf-8")
+    assert chart_spend_scale(html) == 1_000_000
+    chart = parse_chart(html, "chart_budget_stats_wrap")
+    assert chart is not None
+    raw = chart["totals"]["Spent budget"]
+    assert raw == 268800
+    scaled = scale_chart_spend(raw, chart_spend_scale(html))
+    assert scaled == 0.2688
+    # Same order of magnitude as ad-list spent ~0.54, not ~1e6.
+    assert 0.05 < scaled < 5
 
 
 def test_parse_accounts_from_hrefs() -> None:
@@ -77,9 +133,23 @@ def test_parse_chart_and_metrics() -> None:
     assert metrics["cpm_actual"] == 5.0
 
 
+def test_parse_chart_malformed_does_not_raise() -> None:
+    bads = [
+        "renderGraph('chart_count_stats_wrap', {\"columns\": 1});",
+        "renderGraph('chart_count_stats_wrap', []);",
+        "renderGraph('chart_count_stats_wrap', {\"columns\":[123]});",
+        "renderGraph('chart_count_stats_wrap', {\"columns\":[{\"x\":1}]});",
+        "renderGraph('chart_count_stats_wrap', {",
+        "not a chart at all",
+    ]
+    for html in bads:
+        assert parse_chart(html, "chart_count_stats_wrap") is None
+
+
 def test_redact_secrets() -> None:
-    raw = "stel_token=supersecret stel_ssid=alsohash api_hash=deadbeef"
+    raw = "stel_token=supersecret stel_ssid=alsohash api_hash=deadbeef https://ads.telegram.org/api?hash=abcdef123456"
     out = redact(raw)
     assert "supersecret" not in out
     assert "alsohash" not in out
+    assert "abcdef123456" not in out
     assert "***" in out

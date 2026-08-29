@@ -8,9 +8,9 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from tg_ads_mcp.client import ConfigError, StarsCabinetError, TelegramAdsClient
+from telegram_ads_mcp.client import ConfigError, StarsCabinetError, TelegramAdsClient
 
-log = logging.getLogger("tg_ads_mcp.session")
+log = logging.getLogger("telegram_ads_mcp.session")
 
 # owner_id -> client. The empty key is the currently selected default.
 _clients: dict[str, TelegramAdsClient] = {}
@@ -90,7 +90,7 @@ async def switch_account(owner_id: str) -> TelegramAdsClient:
 
 
 def fail_payload(exc: BaseException) -> dict[str, Any]:
-    from tg_ads_mcp.client import AuthError
+    from telegram_ads_mcp.client import AuthError
 
     if isinstance(exc, ConfigError):
         return {"ok": False, "error": str(exc), "code": "config"}
