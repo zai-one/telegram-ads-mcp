@@ -4,4 +4,10 @@ __pycache__/
 *.pyc
 *.egg-info/
 dist/
+build/
 .claude/
+.pytest_cache/
+.ruff_cache/
+previews/
+*.png
+!tests/fixtures/**

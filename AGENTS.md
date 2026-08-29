@@ -1,204 +1,64 @@
 # AGENTS.md — Playbook for LLM Agents
 
-You are an agent connected to `tg-ads-mcp`, an MCP server that wraps the Telegram Ads backend. It supports both **TON cabinets** (direct ads.telegram.org accounts, TON-billed) and **EUR cabinets** (reseller accounts like Click Reklam, EUR-billed). A few features are EUR-only — see the "User-level targeting" section below.
+You are connected to `tg-ads-mcp`, wrapping ads.telegram.org.
 
-Read this once at session start — it will save you many round-trips.
+- **TON** cabinets (direct, TON-billed) are the primary target.
+- **EUR** cabinets (reseller) work, including `target_type=users`.
+- **Stars** cabinets are refused. If `check_session` / `get_account` returns `cabinet: "stars"`, call `list_accounts` and `select_account` onto a TON or EUR cabinet. Do not try to create ads on Stars.
 
-## Mental model
+Read this (or the `ads://playbook` resource) once per session.
 
-The platform's data model:
+## Auth
 
-- **Account** (`owner_id`) — your ad cabinet. One session can have several; pick one with `select_account`.
-- **Ad** — one creative + one targeting + one budget. Cannot change `target_type` after creation; clone instead.
-- **Target type** — `channels` / `bots` / `search` / `users`. Determines required fields:
-  - `channels`: needs `channels` (semicolon-separated IDs from `search_channel`). Optional `text`, `picture`, `media`.
-  - `bots`: needs `bots` (IDs from `search_bot`). Bot must have **≥ 1000 daily users**. Optional `text`, `picture`.
-  - `search`: needs `search_queries` (IDs from `search_target_query`). **No text, picture, or media** — search ads are CPM-only.
-  - `users`: **EUR cabinet only.** Targets Telegram users by country / language / interest topic / subscribed channels / device via `create_user_ad`. TON cabinets don't render this type — see "User-level targeting" below.
-- **Status** — `"1"` (active) / `"0"` (on hold) on the wire. Wrappers also accept `"active"` / `"on_hold"`.
-- **Money** — currency depends on the cabinet: **TON** on TON cabinets, **EUR** on EUR (reseller) cabinets. Either way, budgets and CPMs are passed as strings (e.g. `"0.15"`, `"1"`), never numbers. Fund transfers (`transfer_funds` / `withdraw_funds` / `send_add_funds_request`) are TON-cabinet operations.
+Cookies live in the user's `.env` (`STEL_TOKEN`, `STEL_SSID`). **Never ask them to paste cookies into chat.** If the session is dead:
 
-## Auth flow — always start here
+1. Tell them to refresh cookies in the browser, put them in `.env`.
+2. Call `reload_session`.
 
-```
-check_session
-```
+Always start with `check_session`. Then `get_account` for balance + currency.
 
-- If `ok: true` → proceed.
-- If `ok: false` → cookies expired. Ask the user for fresh ones, then call `update_cookies(stel_token, stel_ssid, stel_adowner=None)`. Don't try other tools first; they will all fail.
+Status on the wire is `"1"` (active) / `"0"` (on_hold). Wrappers accept `"active"` / `"on_hold"`. Money and IDs are **strings**. Multi-IDs are **semicolon-separated**.
 
-If the user has multiple cabinets and you're not sure which is active:
+## Create a channel ad
 
-```
-list_accounts → select_account(owner_id)
-```
+1. `search_targets(kind="channel", query="...")`
+2. Optional `search_targets(kind="similar_channels", ids="id1;id2")`
+3. `launch_ad(...)` — creates on_hold, adds budget, sends to review. Do not auto-activate.
+   Or, by hand: `check_ad_post` → `create_ad(..., active="on_hold")` → `edit_ad(..., budget_action="increase", budget_amount="5")` → `send_target_to_review`.
+4. `preview_ad(ad_id)` — PNG is attached; also saved under `previews/`.
+5. After approval: `edit_ad(ad_id, active="active")`.
 
-## Workflow: create a channel ad end-to-end
+Search ads: `target_type="search"`, `search_queries="..."`. Do **not** pass text/picture/media.
 
-1. **Find target channels.** `search_channel(query="...")` returns candidates with IDs. Pick one or more.
-2. **(Optional) Expand reach.** `get_similar_channels(channels="id1;id2")` for lookalikes.
-3. **Create the ad on hold.**
-   ```
-   create_ad(
-     title="internal name",
-     promote_url="https://t.me/your_channel",
-     cpm="0.15",
-     target_type="channels",
-     channels="id1;id2",
-     text="ad copy ≤ 160 chars",
-     daily_budget="1",
-     active="on_hold",
-   )
-   ```
-   Always create on hold first. Review the ad object that comes back.
-4. **Add budget.** Ads with `budget="0"` cannot be sent to review. `edit_ad_budget(ad_id, amount="5", action="increase")`.
-5. **Submit for review.** `send_target_to_review(ad_id)`.
-6. **After approval, activate.** `edit_ad_status(ad_id, active="active")`.
+Bot ads: `target_type="bots"`, IDs from `search_targets(kind="bot", purpose="target")`. Destination lookup uses `purpose="promote"`. Bot needs ≥1000 daily users.
 
-## Workflow: create a channel-CATEGORY ad (EUR cabinet only)
+EUR user targeting: `target_type="users"` + `get_targeting_reference(kind="user")`. TON will refuse this type.
 
-Beyond targeting specific channel IDs, EUR cabinets let you place ads across a
-whole **topic + language** slice — e.g. "all Russian-language Education
-channels" — without listing channels by hand. TON cabinets do not expose
-these filters; the example below will be rejected on TON.
+## Stats
 
-1. **Confirm cabinet type.** `check_cabinet_type()` → expects `{"cabinet": "eur"}`.
-2. **Pull channel-targeting reference.** `get_channel_targeting_reference()` returns:
-   - `topics` — channel category IDs (Books, Education, Foreign Language Learning, …)
-   - `languages` — channel content language codes (en, ru, ar, …)
-   - `conversion_events` — optional conversion event IDs
-3. **Create the ad on hold.**
-   ```
-   create_ad(
-     title="...",
-     promote_url="https://t.me/your_bot",
-     cpm="1.00",
-     target_type="channels",
-     text="ad copy ≤ 160 chars",
-     topics="13;19",                  # Education + Foreign Language Learning
-     langs="ru",                      # Russian-language channels only
-     exclude_topics="2;7",            # not in Gambling/Crypto channels
-     daily_budget="1",
-     active="on_hold",
-   )
-   ```
-4. **Budget + review + activate** — same as the basic channel ad flow.
+`get_ad_stats(ad_id, period="5min"|"day")`. Summary includes views, clicks, started_bot, spend, ctr, cpc, cpm_actual.
 
-Notes:
-- `topics` (channel-categorisation) shares the 41-entry taxonomy with
-  `user_topics` (in `create_user_ad`) but the wire field name is different.
-  `topics` filters by what CATEGORY the channel is in; `user_topics` filters
-  by what the USER is interested in.
-- Mixing `channels="id1;id2"` with `topics=...` is allowed — TG ANDs them
-  (specific channels narrowed further by topic), but in practice if you
-  already have channel IDs you don't need a topic filter.
-- `langs` lives next to channel-category targeting; it is NOT the same as
-  `user_langs` (which targets TG-interface language of the user).
-- `conversion_event` and `button` (CTA text e.g. "OPEN WEBSITE",
-  "JOIN CHANNEL") are EUR-only and work on any target_type.
+## Pause / resume
 
-## Workflow: create a bot ad
+- Pause: `edit_ad(ad_id, active="on_hold")`
+- Resume: `edit_ad(ad_id, active="active")`
+- Depleted budget: `edit_ad(ad_id, budget_action="increase", budget_amount="N")` resumes without re-review.
 
-Same as channel ad, but:
-- `target_type="bots"`, populate `bots=...` from `search_bot`.
-- `promote_url` is a `t.me/your_bot` link.
-- Verify the bot has ≥ 1000 daily users before suggesting it — search results show this.
+## Audiences and events
 
-## Workflow: create a search ad
-
-```
-search_target_query(query="vpn") → IDs
-create_ad(
-  title="...",
-  promote_url="https://t.me/your_bot",
-  cpm="0.20",
-  target_type="search",
-  search_queries="id1;id2",
-  daily_budget="1",
-  active="on_hold",
-)
-```
-
-Do **not** pass `text`, `picture`, `media`, or `channels` — the platform will reject the ad.
-
-## Workflow: create a user-targeted ad (EUR cabinet only)
-
-User-level targeting reaches Telegram users matching demographic/interest criteria — independent of which channel the ad shows up in. **TON cabinets do not support this.** Call `check_cabinet_type` first if unsure.
-
-1. **Confirm cabinet type.** `check_cabinet_type()` → expects `{"cabinet": "eur", "supports_user_targeting": true}`. If TON, the user-targeting tools refuse cleanly.
-2. **Pull reference data.** `get_user_targeting_reference()` returns:
-   - `countries` — list of `{val: ISO_code, name}` (~226 entries)
-   - `languages` — list of `{val: lang_code, name}` (~71 entries)
-   - `topics` — list of `{val: numeric_id, name}` (~41 interest categories)
-   Use these `val` strings as semicolon-separated IDs.
-3. **(Optional) Resolve cities.** `search_location(query="...")` for sub-country geo IDs.
-4. **(Optional) Resolve channels for `user_channels` (must-be-subscribed) or `exclude_user_channels`.** `search_channel(query="...")` — max 100.
-5. **Create the ad.**
-   ```
-   create_user_ad(
-     title="...",
-     promote_url="https://t.me/your_bot",
-     cpm="2.00",                    # EUR floor is €1
-     text="ad copy ≤ 160 chars",
-     countries="US;GB;DE",
-     user_langs="en",
-     user_topics="13;19",           # Education, Foreign Language Learning
-     intersect_topics=False,        # OR between topics; True = AND
-     exclude_politic=True,
-     budget="5",
-     daily_budget="1",
-     active="on_hold",
-   )
-   ```
-6. **Add budget + submit + activate** — same flow as channel/bot/search ads.
-
-Notes:
-- All `*_topics` / `*_channels` params accept `"id1;id2;id3"` semicolon strings.
-- `intersect_topics=True` requires the user to match ALL listed topics (AND); default OR.
-- `exclude_politic` / `exclude_crypto` are policy-style placement guards (don't show in those categories). `only_politic` / `only_crypto` are the inverse — show ONLY in them.
-
-## Workflow: read stats
-
-`get_ad_stats(ad_id, period="5min" | "day")`
-
-- `period="5min"` — 288 buckets covering the **last 24h**. Use for attribution: match `Started bot` timestamps with bot-side user-registration timestamps.
-- `period="day"` — daily buckets covering the **full lifetime** of the ad. Use for trend analysis.
-
-The response has:
-- `summary` — quick totals (`views`, `clicks`, `started_bot`, `period`, `interval_seconds`)
-- `charts.counts` — Views / Clicks / Started bot per bucket
-- `charts.budget` — spend per bucket
-
-When the user asks "how is ad X doing", call `get_ad_stats(ad_id, period="5min")` first — that's the highest-resolution view of recent performance. Only fall back to `period="day"` if they ask about long-term trends.
-
-## Workflow: pause / resume
-
-- Pause: `edit_ad_status(ad_id, active="on_hold")`
-- Resume: `edit_ad_status(ad_id, active="active")`
-- Stopped due to depleted budget: `edit_ad_budget(ad_id, amount="N", action="increase")` resumes the ad **without re-review**.
+`manage_audience(action="list"|"create"|...)`. Create with `user_ids=[...]` (preferred) or `file_path`.
+`manage_event(action="list"|"create"|...)`.
+Pass `audience_id` into `create_ad` / `edit_ad` when the platform accepts it.
 
 ## Funds
 
-- `send_add_funds_request` — top up the cabinet (returns a TON wallet payment instruction; the user pays from their wallet).
-- `transfer_funds(account_id, amount)` — move TON between your own cabinets.
-- `withdraw_funds(account_id, amount)` — move TON back out to your wallet.
-- `search_account_for_transfer(query)` / `get_accounts_for_transfer()` — discovery.
+`manage_funds(action="add"|"transfer"|"withdraw"|"search"|"list")`. Amount is a string in the **cabinet currency** (TON or EUR), never hardcoded as TON.
 
-## Gotchas — read before you act
+## Gotchas
 
-- **Many destructive tools take a `confirm_hash`.** First call returns the hash; pass it back in a second call to actually delete. Tools: `delete_ad`, `clone_ad`, `delete_audience`, `clone_audience`, `delete_event`. Do not silently re-call without showing the user what will be deleted.
-- **`target_type` is immutable.** Need different targeting? `clone_ad`, then edit the clone, then delete the original.
-- **`budget="0"` blocks review.** A new ad with no budget will sit in "on hold" forever. Tell the user.
-- **Cookies expire.** When any tool returns `{"ok": false, "error": "Session expired..."}` — stop, ask for fresh cookies, call `update_cookies`. Don't retry the failing call until that's done.
-- **CPM and budget are strings, not numbers.** `cpm="0.15"`, not `cpm=0.15`.
-- **`channels` / `bots` / `search_queries` are semicolon-separated**, not commas.
-- **Search ads:** no `text`, no `picture`, no `media`. Don't pass them.
-- **`get_ads_list` paginates** at 100 items. Use `next_offset_id` from the response for the next page.
-
-## Failure handling
-
-The wrappers return JSON strings. Parse them and check `ok` (or, for raw API responses, the absence of an `error` field). On auth failure, see the gotcha above. On validation failure, surface the platform's error message verbatim to the user — it's usually specific enough to act on.
-
-## When in doubt
-
-Read the tool's docstring (it shows up in your tool list) before guessing parameter values. If a parameter isn't in the docstring, it isn't supported by the wrapper — don't pass it.
+- Destructive tools (`delete_ad`, `manage_funds`, `log_out`, `revoke_token`) still run when called. Show the user what will happen; many deletes need `confirm_hash` (call once, then again with the hash).
+- `target_type` is immutable. Clone then edit.
+- `budget="0"` blocks review.
+- `get_ads` paginates at 100. Use `next_offset_id`.
+- If any tool returns `code: "auth"`, stop and `reload_session` after the user updates `.env`.
+- If `code: "stars_cabinet"`, switch account. Do not retry the same cabinet.

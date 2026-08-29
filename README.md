@@ -1,132 +1,86 @@
 # tg-ads-mcp
 
-MCP server for the [Telegram Ads](https://ads.telegram.org/) platform — supports both **TON cabinets** (direct, TON-billed) and **EUR cabinets** (reseller, EUR-billed). Exposes ~50 tools so AI agents can create, edit, target, monitor, and analyze Telegram Ads campaigns end-to-end.
+Unofficial MCP server for [Telegram Ads](https://ads.telegram.org/). **TON cabinets are the primary target; EUR cabinets work; Stars cabinets are detected and refused.**
 
-Built on top of [FastMCP](https://github.com/modelcontextprotocol/python-sdk). Authenticates via session cookies — no official Telegram Ads public API is required.
+Built on the [MCP Python SDK v2](https://github.com/modelcontextprotocol/python-sdk) (`mcp>=2.1.1,<3`). Authenticates with session cookies from your browser — Telegram does not publish a public advertiser REST API. This is an unofficial wrapper; using it may violate Telegram's terms. See [SECURITY.md](./SECURITY.md) and the [Ad Guidelines](https://ads.telegram.org/guidelines).
 
 ## What you can do
 
-- **Auth & accounts** — `check_session`, `list_accounts`, `select_account`, `update_cookies`
-- **Ads CRUD** — `get_ads_list`, `create_ad`, `edit_ad`, `clone_ad`, `delete_ad`, `send_target_to_review`
-- **Quick edits** — `edit_ad_title`, `edit_ad_cpm`, `edit_ad_budget`, `edit_ad_daily_budget`, `edit_ad_status`
-- **Targeting search** — `search_channel`, `search_bot`, `search_target_query`, `search_location`, `get_similar_channels`, `get_similar_bots`
-- **Audiences & events** — `create_audience`, `edit_audience_title`, `delete_audience`, `clone_audience`, `create_event`, `create_pixel`, …
-- **Funds** — `send_add_funds_request`, `transfer_funds`, `withdraw_funds`, `search_account_for_transfer`
-- **Stats** — `get_ad_stats` (5-min buckets over last 24h, or daily buckets for full lifetime), `revoke_stats_url`
-- **User-level targeting (EUR cabinet only)** — `check_cabinet_type`, `get_user_targeting_reference`, `create_user_ad` (target Telegram users by country, language, interest topic, subscribed channels, device — independent of channel placement)
-- **Account settings** — `save_account_info`, `save_api_settings`, `revoke_token`, `log_out`
+~25 tools (down from 50) plus resources `ads://playbook` and `ads://account`.
 
-Full per-tool documentation lives in the docstrings inside [`server.py`](./server.py) — they are surfaced to the agent at tool-call time.
+- **Auth** — `check_session`, `reload_session` (re-reads `.env`, no cookies in tool args), `list_accounts`, `select_account`, `get_account` (balance + currency + cabinet type)
+- **Ads** — `get_ads`, `get_ad`, `create_ad`, `edit_ad` (title/cpm/budget/status/picture-off/clear media), `delete_ad`, `clone_ad`, `launch_ad`, `check_ad_post`, `send_target_to_review`
+- **Creatives** — `upload_media` (file path or base64), `preview_ad` (PNG attached to the tool result and saved under `previews/`)
+- **Targeting** — `search_targets`, `get_targeting_reference` (EUR taxonomies)
+- **Audiences / events** — `manage_audience`, `manage_event`
+- **Funds** — `manage_funds` (currency follows the cabinet)
+- **Account** — `save_api_settings`, `revoke_token`, `log_out`
+
+Stars cabinets: `get_account` reports them, every ad/funds tool refuses until you `select_account` onto TON or EUR.
 
 ## Prerequisites
 
-- Python ≥ 3.11
+- Python ≥ 3.10
 - [`uv`](https://github.com/astral-sh/uv) (recommended) or `pip`
-- An account on [ads.telegram.org](https://ads.telegram.org/) with a **TON cabinet** (direct, TON-billed) or an **EUR cabinet** (reseller, EUR-billed), and a funded balance for any operations that touch real money
+- An ads.telegram.org login with a **TON** or **EUR** cabinet
 
 ## Install
 
 ```bash
-git clone https://github.com/NikitaZhidkov/tg-ads-mcp.git
+git clone https://github.com/zai-one/tg-ads-mcp.git
 cd tg-ads-mcp
 uv sync
 ```
 
-Or run it without cloning, straight from GitHub, via [`uvx`](https://docs.astral.sh/uv/guides/tools/):
+Or without cloning:
 
 ```bash
-uvx --from git+https://github.com/NikitaZhidkov/tg-ads-mcp tg-ads-mcp
+uvx --from git+https://github.com/zai-one/tg-ads-mcp tg-ads-mcp
 ```
 
 ## Configure
 
-### 1. Get your session cookies
+### 1. Cookies → `.env` only
 
-The server logs into ads.telegram.org as you, using cookies from your browser:
+1. Open https://ads.telegram.org/ and log in.
+2. DevTools → Application → Cookies → `https://ads.telegram.org`.
+3. Copy `stel_token` and `stel_ssid` into `.env` (see `.env.example`). Optional: `STEL_ADOWNER`.
 
-1. Open <https://ads.telegram.org/> in your browser and log in.
-2. Open DevTools → **Application** → **Storage** → **Cookies** → `https://ads.telegram.org`.
-3. Copy the values of:
-   - `stel_token`
-   - `stel_ssid`
-   - `stel_adowner` *(optional — pre-selects an ad account; otherwise the first one is used)*
+**Never paste cookies into chat, screenshots, or tool arguments.** When they expire, update `.env` and call `reload_session`.
 
-Cookies expire periodically. When they do, repeat the steps above and either restart the server with new env vars or call the `update_cookies` tool from the agent.
+### 2. MCP client
 
-### 2. Set environment variables
-
-Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-```
-
-…and fill in the values.
-
-### 3. Wire it into your MCP client
-
-**Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json`:
+**Claude Desktop / Claude Code / Cursor** — stdio:
 
 ```json
 {
   "mcpServers": {
     "tg-ads": {
       "command": "uv",
-      "args": ["--directory", "/absolute/path/to/tg-ads-mcp", "run", "server.py"],
-      "env": {
-        "STEL_TOKEN": "...",
-        "STEL_SSID": "...",
-        "STEL_ADOWNER": ""
-      }
+      "args": ["--directory", "/absolute/path/to/tg-ads-mcp", "run", "tg-ads-mcp"]
     }
   }
 }
 ```
 
-**Claude Code** — `.mcp.json` in your project root, same shape as above.
+`.env` is loaded on startup; do not put `STEL_*` in the MCP `env` block unless you have to.
 
-**Cursor** — `~/.cursor/mcp.json`, same shape as above.
-
-If you set the values in `.env`, you can omit the `env` block — `server.py` calls `load_dotenv()` on startup.
-
-To avoid a local checkout entirely, use the `uvx`-from-GitHub form as the command:
-
-```json
-{
-  "mcpServers": {
-    "tg-ads": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/NikitaZhidkov/tg-ads-mcp", "tg-ads-mcp"],
-      "env": { "STEL_TOKEN": "...", "STEL_SSID": "...", "STEL_ADOWNER": "" }
-    }
-  }
-}
-```
-
-## Run standalone (for debugging)
+Remote / HTTP:
 
 ```bash
-uv run server.py
+uv run tg-ads-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
-The server speaks MCP over stdio.
+Then point the client at `http://127.0.0.1:8000/mcp`.
 
-## Notes on the Telegram Ads API
+## Notes
 
-- **TON vs EUR cabinets.** Both work. TON cabinets fund and bill in TON; EUR cabinets are reseller-operated (e.g. Click Reklam) and bill in EUR. Switch between them with `select_account`. The MCP detects which type you're on automatically when needed (`check_cabinet_type`).
-- **User-level targeting is EUR-only.** EUR cabinets expose a fourth `target_type=users` that reaches Telegram users by country / language / interest topic / subscribed channels / device — independent of channel placement. TON cabinets only have `channels` / `bots` / `search`. The `create_user_ad`, `get_user_targeting_reference`, and `check_cabinet_type` tools refuse cleanly when run on a TON cabinet.
-- `target_type` (`channels` / `bots` / `search` / `users`) is fixed at ad creation — you can't switch it later.
-- Search ads have **no text, picture, or media** — only a CPM and search keywords.
-- Status values inside the platform are `"1"` (active) / `"0"` (on hold). The wrappers accept human-readable `"active"` / `"on_hold"` and translate.
-
-## Security
-
-Your `STEL_TOKEN` and `STEL_SSID` are the equivalent of an unscoped login — anyone holding them can manage your ad account and spend your TON. Treat them like passwords. **Never commit `.env`, never paste cookies into shared chats, screenshots, or remote agents you don't trust.**
+- `target_type` is fixed at creation (`channels` / `bots` / `search` / `users`). `users` is EUR-only.
+- Status: `"active"` / `"on_hold"` (wire `"1"` / `"0"`).
+- Amounts are strings in the cabinet currency. Do not assume TON.
+- Search ads: no text, picture, or media.
+- `preview_ad` writes PNGs to `TG_ADS_PREVIEW_DIR` (default `./previews`) so clients that cannot render MCP images still have a file.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
-
-## See also
-
-- [`AGENTS.md`](./AGENTS.md) — playbook for LLM agents using this server.
+MIT — see [LICENSE](./LICENSE). Unofficial, not affiliated with Telegram.
