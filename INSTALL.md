@@ -1,6 +1,10 @@
 # Install telegram-ads-mcp (for any coding agent)
 
-**Language:** English · [Русский](#русская-версия)
+<p align="center">
+  <a href="#install-telegram-ads-mcp-for-any-coding-agent">🇬🇧</a>
+  &nbsp;·&nbsp;
+  <a href="#русская-версия">🇷🇺</a>
+</p>
 
 Paste this whole file into Claude Code, Cursor, Codex, Grok, or another agent and tell it to follow it.
 

@@ -19,10 +19,14 @@ def test_readme_language_switcher_and_star() -> None:
     ru = (ROOT / "README.ru.md").read_text(encoding="utf-8")
     assert "README.ru.md" in en
     assert "README.md" in ru
+    assert "🇬🇧" in en and "🇷🇺" in en
+    assert "🇬🇧" in ru and "🇷🇺" in ru
     for text in (en, ru):
         assert "zai-one/telegram-ads-mcp" in text
-        assert "star" in text.lower() or "звезд" in text.lower()
+        assert "star" in text.lower() or "звезд" in text.lower() or "★" in text
         assert "Gram" in text or "GRAM" in text
+        assert "Grok" in text
+        assert "zai-one.png" in text or "github.com/zai-one" in text
 
 
 def test_install_md_stars_and_clone() -> None:

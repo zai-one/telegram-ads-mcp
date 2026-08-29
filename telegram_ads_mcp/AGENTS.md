@@ -53,7 +53,7 @@ Do not invent extra markdown, reports, dumps, or scripts. Allowed docs: `README.
 ## Before every commit and push
 
 1. `uv run pytest -q` — must be green (includes leak tests and `test_ci_import_entrypoint`).
-2. `README.md` and `README.ru.md` still list the same tools as `telegram_ads_mcp.server` (no dropped `get_account` / `get_ad_stats` / `launch_ad` / `reload_session`). Both start with a language switcher. Both ask for a GitHub star.
+2. `README.md` and `README.ru.md` still list the same tools as `telegram_ads_mcp.server` (no dropped `get_account` / `get_ad_stats` / `launch_ad` / `reload_session`). Both start with flag switchers (🇬🇧 / 🇷🇺). Both ask for a GitHub star. Contributors table still credits Grok (implementation) and Aleksandr / ZAI.ONE.
 3. `INSTALL.md` still clones `zai-one/telegram-ads-mcp`, uses Gram, and **stars the repo**.
 4. Docs say **Gram**, not TON, for money.
 5. `.env` / `VERIFY.md` stay untracked. `git status` before push.
