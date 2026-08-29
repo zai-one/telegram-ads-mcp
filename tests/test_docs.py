@@ -26,7 +26,10 @@ def test_readme_language_switcher_and_star() -> None:
         assert "star" in text.lower() or "звезд" in text.lower() or "★" in text
         assert "Gram" in text or "GRAM" in text
         assert "Grok" in text
-        assert "zai-one.png" in text or "github.com/zai-one" in text
+        assert "Codex" in text
+        assert "xai-org" in text
+        assert "t.me/zai_one" in text
+        assert "issues/new" in text
 
 
 def test_install_md_stars_and_clone() -> None:
@@ -45,6 +48,13 @@ def test_readmes_list_shipped_tools() -> None:
     for name in REQUIRED:
         assert name in en, name
         assert name in ru, name
+
+
+def test_issue_template_forbids_secrets() -> None:
+    tpl = (ROOT / ".github" / "ISSUE_TEMPLATE" / "request.yml").read_text(encoding="utf-8")
+    cfg = (ROOT / ".github" / "ISSUE_TEMPLATE" / "config.yml").read_text(encoding="utf-8")
+    assert "stel_token" in tpl.lower() or "cookies" in tpl.lower()
+    assert "t.me/zai_one" in tpl or "t.me/zai_one" in cfg
 
 
 def test_agents_hygiene_and_gram() -> None:

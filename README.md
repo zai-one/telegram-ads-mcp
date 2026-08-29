@@ -75,6 +75,16 @@ HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --po
 
 Always create ads `on_hold`. `budget="0"` cannot go to review. Amounts are Gram strings. Search ads: no text / picture / media.
 
+## Issues — don’t fork
+
+Please **don’t fork** this repo. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). I will change **this** server.
+
+Use the form. Tick “no cookies”. Never paste `stel_token`, `stel_ssid`, `.env`, hashes, or DevTools screenshots.
+
+Support is **not guaranteed**. Issues are read when I can.
+
+Need **EUR** or **Stars** cabinets (not live here)? Write on Telegram: [t.me/zai_one](https://t.me/zai_one). We can talk about access. Do not send cookies in the GitHub issue.
+
 ## Contributors
 
 <table>
@@ -87,17 +97,24 @@ Always create ads `on_hold`. `budget="0"` cannot go to review. Amounts are Gram 
       <sub>ZAI.ONE · maintainer</sub>
     </td>
     <td align="center" width="140">
-      <a href="https://x.ai">
+      <a href="https://github.com/xai-org">
         <img src="https://github.com/xai-org.png?size=160" width="80" alt="Grok"><br>
         <sub><strong>Grok</strong></sub>
       </a><br>
       <sub>xAI · implementation</sub>
     </td>
+    <td align="center" width="140">
+      <a href="https://github.com/openai">
+        <img src="https://github.com/openai.png?size=160" width="80" alt="Codex"><br>
+        <sub><strong>Codex 5.6</strong></sub>
+      </a><br>
+      <sub>OpenAI · implementation</sub>
+    </td>
   </tr>
 </table>
 
-GitHub’s Contributors graph only lists git commit authors. Grok is credited here because it writes the code; it does not have a GitHub login on this repo.
+The GitHub Contributors graph only lists git commit authors. Grok (xAI) and Codex 5.6 are credited here because they write the code.
 
-[ZAI.ONE](https://zai.one) · [contact@zai.one](mailto:contact@zai.one) · [Telegram](https://t.me/Zai_one_bot)
+[ZAI.ONE](https://zai.one) · [contact@zai.one](mailto:contact@zai.one) · [Telegram](https://t.me/zai_one)
 
-MIT · [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md)
+MIT · [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · please don’t fork, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose)

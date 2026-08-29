@@ -1,0 +1,56 @@
+name: Request or bug
+description: Ask for a fix or a feature. No cookies, no tokens, no .env.
+title: "[ads] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Support is **not guaranteed**. I will read issues and improve the server when I can.
+
+        **Do not paste** `stel_token`, `stel_ssid`, `.env`, API hashes, or DevTools screenshots.
+
+        Prefer **not to fork**. Describe the need here — I will patch this repo.
+
+        Need EUR or Stars? Message https://t.me/zai_one and we can talk about access. Do not put those cookies in this form.
+  - type: checkboxes
+    id: no_secrets
+    attributes:
+      label: Secrets
+      options:
+        - label: This issue has no cookies, tokens, hashes, or .env contents
+          required: true
+  - type: dropdown
+    id: cabinet
+    attributes:
+      label: Cabinet currency
+      options:
+        - Gram
+        - EUR
+        - Stars
+        - unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type
+      options:
+        - bug
+        - missing feature
+        - docs
+        - EUR / Stars help (I will contact Telegram, not paste cookies here)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What should work
+      description: Tools, expected result, what happened instead. Redact IDs if you want.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to see it (optional)
+      description: MCP client, tool name, redacted JSON. No cookies.

@@ -48,12 +48,12 @@ Destructive tools run when called. `confirm_hash` is two-step; do not strip it.
 
 ## File hygiene (this repo)
 
-Do not invent extra markdown, reports, dumps, or scripts. Allowed docs: `README.md`, `README.ru.md`, `INSTALL.md`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`, `LICENSE`, `OFFLINE.md`, `BACKLOG.md`. No `VERIFY.md` in git. No live HTML/cookies in the tree. Tests live in `tests/` + `tests/fixtures/` (synthetic, not the operator’s cabinet). Package code in `telegram_ads_mcp/`. Tool count 12–28. After changing `AGENTS.md`, copy it to `telegram_ads_mcp/AGENTS.md`.
+Do not invent extra markdown, reports, dumps, or scripts. Allowed docs: `README.md`, `README.ru.md`, `INSTALL.md`, `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`, `LICENSE`, `OFFLINE.md`, `BACKLOG.md`, plus `.github/ISSUE_TEMPLATE/`. No `VERIFY.md` in git. No live HTML/cookies in the tree. Tests live in `tests/` + `tests/fixtures/` (synthetic, not the operator’s cabinet). Package code in `telegram_ads_mcp/`. Tool count 12–28. After changing `AGENTS.md`, copy it to `telegram_ads_mcp/AGENTS.md`.
 
 ## Before every commit and push
 
 1. `uv run pytest -q` — must be green (includes leak tests and `test_ci_import_entrypoint`).
-2. `README.md` and `README.ru.md` still list the same tools as `telegram_ads_mcp.server` (no dropped `get_account` / `get_ad_stats` / `launch_ad` / `reload_session`). Both start with flag switchers (🇬🇧 / 🇷🇺). Both ask for a GitHub star. Contributors table still credits Grok (implementation) and Aleksandr / ZAI.ONE.
+2. `README.md` and `README.ru.md` still list the same tools as `telegram_ads_mcp.server` (no dropped `get_account` / `get_ad_stats` / `launch_ad` / `reload_session`). Both start with flag switchers (🇬🇧 / 🇷🇺). Both ask for a GitHub star. Contributors table credits Aleksandr / ZAI.ONE, Grok ([xai-org](https://github.com/xai-org)), and Codex 5.6. Issues section: don’t fork, no cookies, Telegram [t.me/zai_one](https://t.me/zai_one) for EUR/Stars.
 3. `INSTALL.md` still clones `zai-one/telegram-ads-mcp`, uses Gram, and **stars the repo**.
 4. Docs say **Gram**, not TON, for money.
 5. `.env` / `VERIFY.md` stay untracked. `git status` before push.
