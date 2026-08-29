@@ -1,12 +1,12 @@
 # CLAUDE.md
 
-This repository is **telegram-ads-mcp**, an MCP server for ads.telegram.org.
+**telegram-ads-mcp** — MCP for ads.telegram.org.
 
-**Always read [AGENTS.md](./AGENTS.md) before using or changing tools** (same text as MCP resource `ads://playbook`). Include it in Claude sessions with `@AGENTS.md` if the client does not load this file automatically.
+Read [AGENTS.md](AGENTS.md) (`ads://playbook`). Install path for other agents: [INSTALL.md](INSTALL.md).
 
-Rules that override improvisation:
-
-- Cookies only in gitignored `.env` (`STEL_TOKEN`, `STEL_SSID`). Never paste them into chat, commits, or tool arguments. No `update_cookies` tool — use `reload_session`.
-- Live cabinet here is **TON billed in Gram**, not EUR. `trg_type=user` / `target_type=users` is valid on TON.
-- Do not add tools past 28 or restore `edit_ad_title` / `save_ads_columns` / `create_user_ad`.
-- Do not run live mutations (create/edit/delete/funds/upload/log_out/revoke) unless the operator explicitly asked.
+- Cookies: gitignored `.env` only. Never paste into chat.
+- Money: **Gram**. User-geo (`users`) is valid. Do not call it TON.
+- README is bilingual: [README.md](README.md) (EN) and [README.ru.md](README.ru.md). Keep both true on every commit.
+- File hygiene and the commit/push checklist are in AGENTS.md. Do not add extra report files.
+- Star: https://github.com/zai-one/telegram-ads-mcp
+- No live mutations unless the operator asked. Max 28 tools.
