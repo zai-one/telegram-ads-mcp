@@ -11,6 +11,16 @@ def _tools():
     return server_mod.mcp._tool_manager.list_tools()
 
 
+def test_ci_import_entrypoint() -> None:
+    """Same imports GitHub Actions runs after pytest. Catch rename drift locally."""
+    from telegram_ads_mcp.server import mcp
+
+    assert mcp.name == "telegram-ads-mcp"
+    import tg_ads_mcp
+
+    assert tg_ads_mcp.__version__ == __import__("telegram_ads_mcp").__version__
+
+
 def test_tool_count_collapsed() -> None:
     names = sorted(t.name for t in _tools())
     assert "update_cookies" not in names

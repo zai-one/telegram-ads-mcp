@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Rename: package/repo `telegram-ads-mcp` (GitHub `zai-one/telegram-ads-mcp`). Import `telegram_ads_mcp`. Script `telegram-ads-mcp`; `tg-ads-mcp` is a deprecated alias. Fork parent unchanged.
+- Rename: package/repo `telegram-ads-mcp` (GitHub `zai-one/telegram-ads-mcp`). Import `telegram_ads_mcp`. Script `telegram-ads-mcp`; `tg-ads-mcp` is a deprecated alias.
+- CI Import step + pytest `test_ci_import_entrypoint` use `telegram_ads_mcp.server` (the previous workflow still imported `tg_ads_mcp.server` and went red after a green suite).
 - Ads-list 30s cache; skip `getAd` after the first HTTP 400. Redact `hash=` in logs. Ship `AGENTS.md` in the wheel. Prompt `review-account`.
 
 - Gram/TON live parse: header balance widget, `currency-ton` beats `value="users"` (not EUR).

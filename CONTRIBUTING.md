@@ -22,4 +22,6 @@ uv run telegram-ads-mcp   # stdio
 
 Docstrings are the agent-facing spec. Money and IDs are strings. Multi-IDs are semicolon-separated. Never log cookies or `api_hash`.
 
-PRs: one logical change, `pytest` green, say which ads.telegram.org method a new tool wraps.
+PRs: one logical change, `uv run pytest` green, say which ads.telegram.org method a new tool wraps.
+
+CI (`.github/workflows/tests.yml`) is Ubuntu+Windows × py3.10/3.13. It runs **the same pytest** plus `from telegram_ads_mcp.server import mcp`. If you rename a package or entrypoint, add a test that performs that import — otherwise GitHub goes red after a green local suite.

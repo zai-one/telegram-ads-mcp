@@ -33,4 +33,4 @@ jobs:
         run: python -m pytest tests -q
 
       - name: Import
-        run: python -c "from tg_ads_mcp.server import mcp; print(mcp.name)"
+        run: python -c "from telegram_ads_mcp.server import mcp; print(mcp.name); import tg_ads_mcp; print(tg_ads_mcp.__version__)"
