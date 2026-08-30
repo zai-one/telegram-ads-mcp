@@ -2,46 +2,18 @@
 
 ## Unreleased
 
-- `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive MCP tools need `confirm=true` unless `open`. Echoed on `check_session` / `get_account`.
-- Playbook: two jobs (cabinet vs repo), danger block, no star-nag. User-facing copy may say Gram (TON).
-- License is **LicenseRef-ZAI-ONE** (not MIT): run against your own cabinet; do not copy or remix; file Issues on this repo.
-- README: Issues CTA (“I'm working on this”) instead of “don’t fork”. Contributors table removed.
-- `CLAUDE.md` inlines the playbook with a bare `@AGENTS.md` line (Claude Code does not follow Markdown links).
-- `server.json` for MCP registry discovery (`io.github.zai-one/telegram-ads-mcp`).
-- Keywords/topics: drop `ton`, keep `gram`.
-- Stars-cabinet errors and tool docstrings say **Gram**, not TON.
-- Rename: package/repo `telegram-ads-mcp` (GitHub `zai-one/telegram-ads-mcp`). Import `telegram_ads_mcp`. Script `telegram-ads-mcp`; `tg-ads-mcp` is a deprecated alias.
-- CI Import step + pytest `test_ci_import_entrypoint` use `telegram_ads_mcp.server` (the previous workflow still imported `tg_ads_mcp.server` and went red after a green suite).
-- Docs: bilingual README, INSTALL.md (agent setup + star), Gram-only wording, file-hygiene rules in AGENTS.md.
-- Issues template (no cookies). Contact t.me/zai_one for EUR/Stars.
-- Ads-list 30s cache; skip `getAd` after the first HTTP 400. Redact `hash=` in logs. Ship `AGENTS.md` in the wheel. Prompt `review-account`.
+## 0.2.0 — 2026-08-30
 
-- Gram/TON live parse: header balance widget, `currency-ton` beats `value="users"` (not EUR).
-- `get_ads` status filter accepts live `Active` / `Stopped` as well as `1` / `0`.
-- `get_ad_stats` divides Gram chart spend by `1000000`.
-- `get_ad` / list map `tme_path` → `promote_url`, `trg_type` → `target_type`.
-- Skip extra `/account/budget` and `/account/ad/new` fetches when `/account` already has a currency widget.
-- `get_targeting_reference` works on TON Gram user-geo (not EUR-only).
-- `AGENTS.md` playbook + `CLAUDE.md` include. Tool count still ~25.
-- `create_ad` / `launch_ad` allow `target_type=users` on TON/Gram (no EUR-only refuse).
-- Leak tests: `.env` untracked; live cookie values must not appear in git files.
-- README: Built by ZAI.ONE (same voice as grok-build-mcp).
+First public GitHub release of `zai-one/telegram-ads-mcp`. MCP Python SDK **2.1.x**.
 
-## 0.2.0 — 2026-08-29
-
-Rewrite on MCP Python SDK **2.1.x** (spec 2026-07-28).
-
-- Package layout `tg_ads_mcp/` (setuptools), script `tg-ads-mcp`.
-- Secrets only from `.env`. `update_cookies` is gone; use `reload_session`.
-- `check_session` no longer returns `api_hash`.
-- Stars cabinets are detected and refused; TON is primary, EUR still works.
-- Tool surface collapsed (~25 tools): merged quick-edits, searches, audiences, events, funds. Dropped UI chrome (`save_ads_columns`, drafts).
-- New: `get_account` (balance + currency), `get_ad`, `preview_ad` (PNG to chat + `previews/`), `upload_media`, `launch_ad`, `audience_id` on create/edit.
-- Empty strings are not sent on create (search ads). `picture=false` / `clear_media` actually detach creatives.
-- Balanced JSON parser (nested arrays). Stats grow CTR/CPC/actual CPM. Async `httpx` with retries. Re-auth on `AUTH_REQUIRED`.
-- Resources `ads://playbook`, `ads://account`. Prompts `launch-campaign`, `diagnose-ad`.
-- Transports: stdio (default) and `--transport streamable-http`.
-- Tests + GitHub Actions. Unofficial wrapper — see README / SECURITY.md.
+- Package `telegram-ads-mcp` (`telegram_ads_mcp`). Script `telegram-ads-mcp`; `tg-ads-mcp` is a deprecated alias.
+- License **LicenseRef-ZAI-ONE** (not MIT): run against your own cabinet; do not copy or remix; file Issues.
+- TON cabinet billed in Gram. User-geo (`users`) works. Stars cabinets refused.
+- `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`.
+- Secrets only from gitignored `.env`. `reload_session` re-reads the file. No cookie args. Leak tests in CI.
+- ~25 tools, resources `ads://playbook` / `ads://account`, prompts `launch-campaign` / `review-account` / `diagnose-ad`.
+- Bilingual README, INSTALL.md (agent setup + star), `CLAUDE.md` bare `@AGENTS.md`, `server.json`.
+- CI: Ubuntu+Windows × py3.10/3.13. Import `telegram_ads_mcp.server`.
 
 ## 0.1.0 — 2026-07-01
 

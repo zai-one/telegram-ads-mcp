@@ -11,6 +11,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.2.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.2.0"></a>
   <a href="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml"><img src="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-555555" alt="MCP 2.x"></a>
