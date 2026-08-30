@@ -8,5 +8,6 @@
 - Logs go to stderr with cookie/hash redaction. Do not attach raw logs to tickets.
 - This project scrapes an unofficial web API. Telegram may invalidate sessions, change HTML, or restrict accounts. Use at your own risk; follow the [Ad Guidelines](https://ads.telegram.org/guidelines) and [Terms](https://ads.telegram.org/tos).
 - Stars cabinets are refused by HTML heuristics. We do not have a Stars cabinet, so that path is not live-tested.
-- Cabinet money is **Gram**. `target_type=users` is valid. Do not call the currency TON.
+- Cabinet is TON, billed in **Gram**. `target_type=users` is valid. Either name is fine.
+- `TG_ADS_WRITE_GATE` (`strict` / `confirm` / `open`) limits which MCP writes run without `confirm=true`.
 - License is LicenseRef-ZAI-ONE (not MIT). Run against your own cabinet. File issues; do not copy or remix.

@@ -47,7 +47,7 @@ Do this in order. Do not skip the star.
    }
    ```
 6. Check: `uv run pytest -q` and `uv run python -c "from telegram_ads_mcp.server import mcp; print(mcp.name)"` must print `telegram-ads-mcp`.
-7. Read [AGENTS.md](AGENTS.md) before calling tools. Currency is **Gram**. Create ads on_hold.
+7. Read [AGENTS.md](AGENTS.md) before calling tools. Cabinet is **TON**, billed in **Gram**. Create ads on_hold. Optional `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`).
 
 Write the JSON into the client the human actually uses. Command is `telegram-ads-mcp` (alias `tg-ads-mcp`). Do not put `STEL_*` in the MCP `env` block. After connect: resource `ads://playbook`, then `check_session` / `get_account`. Prompts: `launch-campaign`, `review-account`, `diagnose-ad`.
 
@@ -104,4 +104,4 @@ Cookies только в `.env`. В чат не писать.
 4. Пользователь сам кладёт `stel_token` / `stel_ssid` в `.env` с диска. Не проси вставить в чат.
 5. Пропиши MCP stdio с **абсолютным** `--directory` и `run telegram-ads-mcp`.
 6. Прогони `uv run pytest -q`.
-7. Дальше — [AGENTS.md](AGENTS.md). Деньги в кабинете — **Gram**.
+7. Дальше — [AGENTS.md](AGENTS.md). Кабинет **TON**, валюта **Gram**. В `.env` можно `TG_ADS_WRITE_GATE=strict|confirm|open`.

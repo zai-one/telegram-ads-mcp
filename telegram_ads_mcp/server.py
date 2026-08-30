@@ -17,6 +17,7 @@ from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 
 from telegram_ads_mcp import __version__
 from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError
+from telegram_ads_mcp.gate import attach_gate, gated
 from telegram_ads_mcp.parse import filter_ads_by_status, map_status, redact
 from telegram_ads_mcp.preview import render_card
 from telegram_ads_mcp.session import fail_payload, get_client, reload_from_env, switch_account
@@ -55,12 +56,14 @@ mcp = MCPServer(
     title="Telegram Ads",
     version=__version__,
     instructions=(
-        "MCP server for ads.telegram.org. Currency is Gram. User-geo (users) is allowed. "
-        "Stars cabinets are refused — switch with list_accounts/select_account. "
-        "Cookies live in .env only (STEL_TOKEN, STEL_SSID). Never ask the user to paste cookies "
-        "into chat; tell them to update .env and call reload_session. "
-        "Always create ads on_hold, add budget, then send_target_to_review. "
-        "Read ads://playbook at session start. Ask the user to star zai-one/telegram-ads-mcp."
+        "MCP server for ads.telegram.org. TON cabinet billed in Gram (say Gram or TON). "
+        "User-geo (users) is allowed. Stars cabinets are refused — switch with "
+        "list_accounts/select_account. Cookies live in .env only (STEL_TOKEN, STEL_SSID). "
+        "Never ask the user to paste cookies into chat; tell them to update .env and "
+        "call reload_session. TG_ADS_WRITE_GATE=strict|confirm|open (default confirm): "
+        "spend/destructive tools need confirm=true unless gate=open. "
+        "Always create ads on_hold. launch_ad spends budget and sends review; it does not activate. "
+        "Read ads://playbook at session start. Two jobs: cabinet vs this git repo — do not mix."
     ),
     website_url="https://github.com/zai-one/telegram-ads-mcp",
 )
@@ -81,7 +84,12 @@ async def _client_or_fail(require_supported: bool = True):
             await client.require_supported_cabinet()
         return client, None
     except (ConfigError, AuthError, StarsCabinetError) as exc:
-        return None, fail_payload(exc)
+        return None, attach_gate(fail_payload(exc))
+
+
+def _gate(cls: str, confirm: bool, tool: str) -> dict[str, Any] | None:
+    blocked = gated(cls=cls, confirm=confirm, tool=tool)
+    return attach_gate(blocked) if blocked else None
 
 
 # ── resources / prompts ──────────────────────────────────────────────
@@ -102,7 +110,7 @@ async def account_resource() -> str:
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return json.dumps(err, ensure_ascii=False)
-    info = await client.get_account()
+    info = attach_gate(await client.get_account())
     info.pop("api_hash", None)
     return json.dumps(info, ensure_ascii=False)
 
@@ -115,10 +123,10 @@ def launch_campaign_prompt(
     return (
         f"Launch a {target_type} ad promoting {promote_url}.\n"
         "1. check_session — if ok=false, tell the user to refresh .env cookies and reload_session.\n"
-        "2. get_account — confirm Gram balance and currency. Abort on Stars.\n"
+        "2. get_account — TON cabinet, GRAM balance. Abort on Stars. Note write_gate.\n"
         "3. search_targets to resolve IDs.\n"
         "4. check_ad_post on the promote_url + text.\n"
-        "5. launch_ad (creates on_hold, adds budget, sends to review). Do not auto-activate.\n"
+        "5. launch_ad (on_hold + budget + review, does not activate). Pass confirm=true if write_gated.\n"
         "6. preview_ad and show the PNG to the user.\n"
     )
 
@@ -127,7 +135,7 @@ def launch_campaign_prompt(
 def review_account_prompt() -> str:
     return (
         "Read-only review of the Telegram Ads cabinet. Do not create, edit, or spend.\n"
-        "1. get_account — expect currency=GRAM and a Gram balance. Abort if Stars.\n"
+        "1. get_account — TON cabinet, currency=GRAM. Abort if Stars. Note write_gate.\n"
         "2. get_ads(status=active) and get_ads(status=on_hold). Use list spent/views/ctr; do not fetch stats for every ad.\n"
         "3. Pick at most 5 problem ads (Active with 0 views, or Stopped with leftover daily_budget, or CTR crash).\n"
         "4. For each: get_ad_stats(period=5min) then period=day if needed. Compare summary.spend to list spent (same order of magnitude).\n"
@@ -161,10 +169,9 @@ async def check_session() -> dict[str, Any]:
         return err
     try:
         await client.authenticate()
-        info = await client.get_account()
-        return info
+        return attach_gate(await client.get_account())
     except (AuthError, ConfigError, StarsCabinetError) as exc:
-        return fail_payload(exc)
+        return attach_gate(fail_payload(exc))
 
 
 @mcp.tool(annotations=WRITE)
@@ -176,10 +183,9 @@ async def reload_session() -> dict[str, Any]:
     try:
         client = await reload_from_env()
         await client.authenticate()
-        info = await client.get_account()
-        return info
+        return attach_gate(await client.get_account())
     except (AuthError, ConfigError) as exc:
-        return fail_payload(exc)
+        return attach_gate(fail_payload(exc))
 
 
 @mcp.tool(annotations=READ)
@@ -190,45 +196,49 @@ async def list_accounts() -> dict[str, Any]:
         return err
     try:
         accounts = await client.list_accounts()
-        return _ok(accounts=accounts)
+        return attach_gate(_ok(accounts=accounts))
     except (AuthError, ConfigError) as exc:
-        return fail_payload(exc)
+        return attach_gate(fail_payload(exc))
 
 
 @mcp.tool(annotations=WRITE)
-async def select_account(owner_id: str) -> dict[str, Any]:
+async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]:
     """Switch the active ad cabinet. Then check_session / get_account.
 
     Args:
         owner_id: From list_accounts.
+        confirm: Required when TG_ADS_WRITE_GATE=strict.
     """
+    blocked = _gate("write", confirm, "select_account")
+    if blocked:
+        return blocked
     try:
         client = await switch_account(owner_id)
-        info = await client.get_account()
+        info = attach_gate(await client.get_account())
         if info.get("cabinet") == "stars":
-            return {
+            return attach_gate({
                 "ok": False,
                 "code": "stars_cabinet",
                 "cabinet": "stars",
                 "owner_id": owner_id,
-                "error": "Stars cabinet selected. This server refuses to run ads on Stars. Pick a Gram or EUR cabinet.",
-                "accounts_hint": "Call list_accounts and select_account with a Gram/EUR owner_id.",
-            }
+                "error": "Stars cabinet selected. This server refuses to run ads on Stars. Pick a Gram (TON) or EUR cabinet.",
+                "accounts_hint": "Call list_accounts and select_account with a Gram/TON or EUR owner_id.",
+            })
         return info
     except (AuthError, ConfigError, StarsCabinetError) as exc:
-        return fail_payload(exc)
+        return attach_gate(fail_payload(exc))
 
 
 @mcp.tool(annotations=READ)
 async def get_account() -> dict[str, Any]:
-    """Current cabinet card: owner_id, cabinet, currency (GRAM/EUR), balance."""
+    """Current cabinet card: owner_id, cabinet (ton/eur/stars), currency (GRAM/EUR), balance, write_gate."""
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return err
     try:
-        return await client.get_account()
+        return attach_gate(await client.get_account())
     except (AuthError, ConfigError, StarsCabinetError) as exc:
-        return fail_payload(exc)
+        return attach_gate(fail_payload(exc))
 
 
 # ── ads ──────────────────────────────────────────────────────────────
@@ -311,13 +321,19 @@ async def create_ad(
     schedule: str | None = None,
     schedule_tz: str | None = None,
     schedule_tz_custom: str | None = None,
+    confirm: bool = False,
 ) -> dict[str, Any]:
-    """Create an ad. Gram cabinets allow channels, bots, search, and users (geo). EUR too.
+    """Create an ad. TON/Gram cabinets allow channels, bots, search, and users (geo). EUR too.
 
     Always create on_hold. Budget "0" cannot go to review. IDs are semicolon-separated.
     Search ads: do not pass text/picture/media.
     Empty strings are stripped and not sent.
+    confirm: required for spend (budget>0 or active) when TG_ADS_WRITE_GATE is not open.
     """
+    spend = (budget and budget != "0") or map_status(active) == "1"
+    blocked = _gate("spend" if spend else "write", confirm, "create_ad")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -399,14 +415,21 @@ async def edit_ad(
     schedule: str | None = None,
     schedule_tz: str | None = None,
     schedule_tz_custom: str | None = None,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Edit an ad. Only provided fields are sent.
 
     picture=True shows the avatar, picture=False turns it off (sends picture=0).
     clear_media=True removes attached photo/video.
-    budget_action + budget_amount changes total budget (increase resumes a depleted ad).
+    budget_action + budget_amount changes total budget (increase resumes a depleted Stopped ad).
     Targeting cannot be changed after creation — clone_ad instead.
+    confirm: required to activate or change budget unless TG_ADS_WRITE_GATE=open.
     """
+    going_live = active is not None and map_status(active) == "1"
+    spend = going_live or bool(budget_action)
+    blocked = _gate("spend" if spend else "write", confirm, "edit_ad")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -462,8 +485,14 @@ async def edit_ad(
 
 
 @mcp.tool(annotations=DEST)
-async def delete_ad(ad_id: str, confirm_hash: str | None = None) -> dict[str, Any]:
-    """Delete an ad. First call without confirm_hash; pass the returned hash to confirm."""
+async def delete_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool = False) -> dict[str, Any]:
+    """Delete an ad. Two-step: first call without confirm_hash; pass the returned hash to confirm.
+
+    confirm: TG_ADS_WRITE_GATE (danger). confirm_hash is the platform hash, not the gate.
+    """
+    blocked = _gate("danger", confirm, "delete_ad")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -474,8 +503,14 @@ async def delete_ad(ad_id: str, confirm_hash: str | None = None) -> dict[str, An
 
 
 @mcp.tool(annotations=WRITE)
-async def clone_ad(ad_id: str, confirm_hash: str | None = None) -> dict[str, Any]:
-    """Duplicate an ad into a new draft. Targeting is copied; edit the clone if you need changes."""
+async def clone_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool = False) -> dict[str, Any]:
+    """Duplicate an ad into a new draft. Targeting is copied; edit the clone if you need changes.
+
+    Two-step confirm_hash (platform). confirm is TG_ADS_WRITE_GATE (write).
+    """
+    blocked = _gate("write", confirm, "clone_ad")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -495,8 +530,11 @@ async def check_ad_post(promote_url: str, text: str = "") -> dict[str, Any]:
 
 
 @mcp.tool(annotations=WRITE)
-async def send_target_to_review(ad_id: str) -> dict[str, Any]:
-    """Submit (or resubmit) targeting for review. Requires a non-zero budget."""
+async def send_target_to_review(ad_id: str, confirm: bool = False) -> dict[str, Any]:
+    """Submit (or resubmit) targeting for review. Requires a non-zero budget. Spend-class gate."""
+    blocked = _gate("spend", confirm, "send_target_to_review")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -521,12 +559,18 @@ async def launch_ad(
     user_langs: str | None = None,
     user_topics: str | None = None,
     skip_review: bool = False,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Create on_hold, add budget, submit for review. Does not activate.
 
+    Spends `budget` (default 1 Gram) and sends targeting to review. Not go-live.
     Returns each step so you can see which one failed. Prefer this over calling
     create_ad + edit_ad + send_target_to_review by hand.
+    confirm: required unless TG_ADS_WRITE_GATE=open.
     """
+    blocked = _gate("spend", confirm, "launch_ad")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -552,6 +596,7 @@ async def launch_ad(
         countries=countries,
         user_langs=user_langs,
         user_topics=user_topics,
+        confirm=confirm,
     )
     steps["create"] = created
     ad_id = None
@@ -619,12 +664,16 @@ async def upload_media(
     filename: str | None = None,
     media_base64: str | None = None,
     ad_id: str | None = None,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Upload a photo (JPEG/PNG 16:9, <5 MB) or video (MP4 3–60s, <20 MB).
 
     Pass a local file_path OR media_base64 (+ filename). Returns a media hash
     to feed into create_ad(media=...) / edit_ad(media=...).
     """
+    blocked = _gate("write", confirm, "upload_media")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -730,12 +779,19 @@ async def manage_audience(
     file_path: str | None = None,
     user_ids: list[str] | None = None,
     confirm_hash: str | None = None,
+    confirm: bool = False,
 ) -> dict[str, Any]:
     """Custom audiences. action=list|create|rename|delete|clone.
 
     create: pass file_path (one user id per line) or user_ids=[...].
-    delete/clone: two-step confirm_hash.
+    delete/clone: two-step confirm_hash (platform). confirm is TG_ADS_WRITE_GATE.
+    list is not gated.
     """
+    if action != "list":
+        cls = "danger" if action == "delete" else "write"
+        blocked = _gate(cls, confirm, "manage_audience")
+        if blocked:
+            return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -788,8 +844,17 @@ async def manage_event(
     title: str | None = None,
     event_type: str = "custom",
     confirm_hash: str | None = None,
+    confirm: bool = False,
 ) -> dict[str, Any]:
-    """Conversion events and pixels. action=list|create|rename|delete|create_pixel."""
+    """Conversion events and pixels. action=list|create|rename|delete|create_pixel.
+
+    list is not gated. delete is danger + two-step confirm_hash.
+    """
+    if action != "list":
+        cls = "danger" if action == "delete" else "write"
+        blocked = _gate(cls, confirm, "manage_event")
+        if blocked:
+            return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -816,11 +881,18 @@ async def manage_funds(
     account_id: str | None = None,
     query: str | None = None,
     additional_comment: str = "",
+    confirm: bool = False,
 ) -> dict[str, Any]:
-    """Funds. Currency follows the cabinet (Gram or EUR) — amount is a string.
+    """Funds. Amount is a Gram (or EUR) string.
 
-    action=add (top-up request), transfer, withdraw, search (find a cabinet), list (linked cabinets).
+    list/search = lookup, not gated.
+    add = top-up *request* (not instant credit).
+    transfer/withdraw = money moves in this one call — no confirm_hash. Danger gate.
     """
+    if action in {"add", "transfer", "withdraw"}:
+        blocked = _gate("danger", confirm, "manage_funds")
+        if blocked:
+            return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -858,8 +930,11 @@ async def manage_funds(
 
 
 @mcp.tool(annotations=DEST)
-async def revoke_token() -> dict[str, Any]:
-    """Revoke and regenerate the cabinet API token (IP-whitelist token on ads.telegram.org)."""
+async def revoke_token(confirm: bool = False) -> dict[str, Any]:
+    """Revoke and regenerate the cabinet API token (IP-whitelist token, not ads cookies)."""
+    blocked = _gate("danger", confirm, "revoke_token")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -867,8 +942,11 @@ async def revoke_token() -> dict[str, Any]:
 
 
 @mcp.tool(annotations=WRITE)
-async def save_api_settings(ip_list: str) -> dict[str, Any]:
+async def save_api_settings(ip_list: str, confirm: bool = False) -> dict[str, Any]:
     """Set the IP whitelist for the cabinet API token. Newline-separated IPs."""
+    blocked = _gate("danger", confirm, "save_api_settings")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail()
     if err:
         return err
@@ -876,8 +954,11 @@ async def save_api_settings(ip_list: str) -> dict[str, Any]:
 
 
 @mcp.tool(annotations=DEST)
-async def log_out() -> dict[str, Any]:
+async def log_out(confirm: bool = False) -> dict[str, Any]:
     """Log out of ads.telegram.org for this session. You will need fresh cookies in .env afterwards."""
+    blocked = _gate("danger", confirm, "log_out")
+    if blocked:
+        return blocked
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return err

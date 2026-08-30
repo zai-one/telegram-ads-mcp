@@ -69,8 +69,12 @@ def test_agents_hygiene_and_gram() -> None:
     text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "Gram" in text or "GRAM" in text
     assert "INSTALL.md" in text
-    assert "README.ru.md" in text
-    assert "star" in text.lower()
+    assert "CONTRIBUTING.md" in text
+    assert "TG_ADS_WRITE_GATE" in text
+    assert "write_gated" in text
+    assert "review-account" in text
+    assert "confirm_hash" in text
+    assert "manage_funds" in text
     assert not text.lstrip().startswith("---")
     packed = ROOT / "telegram_ads_mcp" / "AGENTS.md"
     assert packed.is_file()
@@ -95,7 +99,7 @@ def test_license_is_not_mit() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "LicenseRef-ZAI-ONE" in pyproject
     assert "OSI Approved :: MIT License" not in pyproject
-    assert '"ton"' not in pyproject.split("[project]")[1].split("[project.optional")[0]
+    assert '"gram"' in pyproject.split("[project]")[1].split("[project.optional")[0]
 
 
 def test_server_json_discovery() -> None:

@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>telegram-ads-mcp</strong><br>
-  MCP server for <a href="https://ads.telegram.org/">Telegram Ads</a>. Currency: <strong>Gram</strong> 💎
+  MCP server for <a href="https://ads.telegram.org/">Telegram Ads</a>. Currency: <strong>Gram (TON)</strong> 💎
 </p>
 
 <p align="center">
@@ -38,7 +38,9 @@
 
 Telegram does not publish an advertiser API. This server wraps the logged-in ads.telegram.org session (`stel_token` / `stel_ssid` in a gitignored `.env`) and exposes ~25 MCP tools, plus `ads://playbook` and `ads://account`.
 
-Live cabinet unit is **Gram**. User-geo (`target_type=users`) works. Stars cabinets are refused (`code: stars_cabinet`). Unofficial — not Telegram.
+Live cabinet is **TON**, billed in **Gram**. User-geo (`target_type=users`) works. Stars cabinets are refused (`code: stars_cabinet`). Unofficial — not Telegram.
+
+Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`.
 
 ## Quick start
 

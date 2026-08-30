@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive MCP tools need `confirm=true` unless `open`. Echoed on `check_session` / `get_account`.
+- Playbook: two jobs (cabinet vs repo), danger block, no star-nag. User-facing copy may say Gram (TON).
 - License is **LicenseRef-ZAI-ONE** (not MIT): run against your own cabinet; do not copy or remix; file Issues on this repo.
 - README: Issues CTA (“I'm working on this”) instead of “don’t fork”. Contributors table removed.
 - `CLAUDE.md` inlines the playbook with a bare `@AGENTS.md` line (Claude Code does not follow Markdown links).

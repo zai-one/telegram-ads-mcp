@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>telegram-ads-mcp</strong><br>
-  MCP-сервер для <a href="https://ads.telegram.org/">Telegram Ads</a>. Валюта: <strong>Gram</strong> 💎
+  MCP-сервер для <a href="https://ads.telegram.org/">Telegram Ads</a>. Валюта: <strong>Gram (TON)</strong> 💎
 </p>
 
 <p align="center">
@@ -38,7 +38,9 @@
 
 У Telegram нет публичного advertiser API. Сервер работает от сессии ads.telegram.org (`stel_token` / `stel_ssid` в gitignore `.env`) и отдаёт ~25 MCP tools, плюс `ads://playbook` и `ads://account`.
 
-Валюта кабинета — **Gram**. Гео (`target_type=users`) работает. Stars — отказ (`code: stars_cabinet`). Неофициально, не Telegram.
+Кабинет **TON**, валюта **Gram**. Гео (`target_type=users`) работает. Stars — отказ (`code: stars_cabinet`). Неофициально, не Telegram.
+
+Писать в кабинет: `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (по умолчанию `confirm`). Spend/destructive без `confirm=true` не пройдут, пока не `open`.
 
 ## Старт
 
