@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Dead session / cookies
+    url: https://github.com/zai-one/telegram-ads-mcp/blob/main/INSTALL.md
+    about: Follow INSTALL.md DevTools into gitignored .env. Never paste cookies into Issues.
   - name: Telegram
     url: https://t.me/zai_one
     about: Private talk or Gram / EUR / Stars cabinet access. Never send cookies here or in issues.

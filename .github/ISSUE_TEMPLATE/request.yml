@@ -8,9 +8,11 @@ body:
       value: |
         I'm working on this. Support is **not guaranteed**. I will read issues and improve the server when I can.
 
-        **Do not paste** `stel_token`, `stel_ssid`, `.env`, API hashes, or DevTools screenshots.
+        **Do not paste** `stel_token`, `stel_ssid`, `.env`, `confirm_hash`, API `hash=`, cookie-shaped cabinet IDs, or DevTools screenshots. Platform hashes must never be printed.
 
         Describe the need here — I will patch this repo.
+
+        Local draft: `uv run python scripts/check_security.py --issue draft.md` (prints `gh issue create` only if clean; does not open the issue).
 
         Need EUR or Stars? Message https://t.me/zai_one and we can talk about access. Do not put those cookies in this form.
   - type: checkboxes
@@ -19,6 +21,8 @@ body:
       label: Secrets
       options:
         - label: This issue has no cookies, tokens, hashes, or .env contents
+          required: true
+        - label: No confirm_hash, api hash=, STEL_* values, or cookie-shaped cabinet IDs (redact to ***)
           required: true
   - type: dropdown
     id: cabinet
@@ -53,4 +57,4 @@ body:
     id: repro
     attributes:
       label: How to see it (optional)
-      description: MCP client, tool name, redacted JSON. No cookies.
+      description: MCP client, tool name, redacted JSON. Numeric ad ids are fine. No cookies, hashes, or .env.

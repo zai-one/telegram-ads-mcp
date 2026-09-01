@@ -473,6 +473,93 @@ def scale_chart_spend(raw: float, scale: float) -> float:
     return raw / scale
 
 
+def _scale_chart_number(value: Any, scale: float) -> Any:
+    if value is None:
+        return None
+    try:
+        return scale_chart_spend(float(value), scale)
+    except (TypeError, ValueError):
+        return value
+
+
+def scale_budget_chart(chart: dict[str, Any], scale: float) -> dict[str, Any]:
+    """Copy a parsed budget chart with series/totals in the same units as list spent.
+
+    Gram HTML stores ×`spend_scale` (usually 1e6). After this, values match
+    `summary.spend`. `values_already_scaled` is always true so agents never divide.
+    """
+    out: dict[str, Any] = {
+        "interval_seconds": chart.get("interval_seconds"),
+        "names": chart.get("names"),
+        "timestamps": chart.get("timestamps"),
+        "series": {},
+        "totals": {},
+        "values_already_scaled": True,
+    }
+    series_in = chart.get("series") or {}
+    if isinstance(series_in, dict):
+        series: dict[str, Any] = {}
+        for name, values in series_in.items():
+            if not isinstance(values, list):
+                series[name] = values
+                continue
+            series[name] = [_scale_chart_number(v, scale) for v in values]
+        out["series"] = series
+    totals_in = chart.get("totals") or {}
+    if isinstance(totals_in, dict):
+        out["totals"] = {name: _scale_chart_number(val, scale) for name, val in totals_in.items()}
+    return out
+
+
+def looks_access_denied(result: Any) -> bool:
+    """True when ads.telegram.org refused audience/event (or similar) with Access denied."""
+
+    def _hit(text: str) -> bool:
+        return "access denied" in text.lower().replace("_", " ")
+
+    if isinstance(result, str):
+        return _hit(result)
+    if not isinstance(result, dict):
+        return False
+    if str(result.get("code") or "").lower() == "access_denied":
+        return True
+    for key in ("error", "message", "msg"):
+        raw = result.get(key)
+        if isinstance(raw, str) and _hit(raw):
+            return True
+    return False
+
+
+def access_denied_payload(result: Any, *, tool: str, action: str = "list") -> dict[str, Any]:
+    """Structured skip for agents. Do not retry-loop."""
+    err = "Access denied"
+    if isinstance(result, dict):
+        for key in ("error", "message", "msg"):
+            raw = result.get(key)
+            if isinstance(raw, str) and raw.strip():
+                err = raw.strip()
+                break
+    elif isinstance(result, str) and result.strip():
+        err = result.strip()
+    return {
+        "ok": False,
+        "code": "access_denied",
+        "hint": "skip",
+        "tool": tool,
+        "action": action,
+        "error": err,
+    }
+
+
+def channel_langs_conflict(target_type: str | None, channels: str | None, langs: str | None) -> bool:
+    """Specific channel IDs plus langs → platform Target invalid. Drop langs."""
+    if not langs or not str(langs).strip():
+        return False
+    if str(target_type or "") != "channels":
+        return False
+    return bool(channels and str(channels).strip())
+
+
 _SECRET_KEYS = ("stel_token", "stel_ssid", "api_hash", "confirm_hash", "cookie")
 
 

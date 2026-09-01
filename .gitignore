@@ -7,8 +7,15 @@ __pycache__/
 dist/
 build/
 .claude/
+# Repo-dev notes only. Client playbook AGENTS.md stays tracked.
+AGENTS.local.md
+CLAUDE.local.md
+.cursor/*.md
 .pytest_cache/
 .ruff_cache/
 previews/
+reports/
 *.png
 !tests/fixtures/**
+draft.md
+*.issue.md

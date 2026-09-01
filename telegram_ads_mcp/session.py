@@ -24,7 +24,7 @@ def env_ready() -> bool:
 def missing_env_message() -> str:
     return (
         "STEL_TOKEN and STEL_SSID are not set. Copy .env.example to .env, "
-        "paste cookies from ads.telegram.org, then call reload_session. "
+        "use INSTALL.md DevTools steps, then call reload_session. "
         "Do not paste cookies into chat."
     )
 

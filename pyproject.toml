@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "telegram-ads-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server for Telegram Ads (TON cabinet, Gram currency). Built by ZAI.ONE."
 readme = "README.md"
 license = { text = "LicenseRef-ZAI-ONE" }
@@ -62,7 +62,7 @@ tg-ads-mcp = "telegram_ads_mcp.server:main"
 include = ["telegram_ads_mcp*", "tg_ads_mcp*"]
 
 [tool.setuptools.package-data]
-telegram_ads_mcp = ["py.typed", "AGENTS.md"]
+telegram_ads_mcp = ["py.typed", "AGENTS.md", "schemas/*.json"]
 tg_ads_mcp = ["py.typed"]
 
 [tool.pytest.ini_options]

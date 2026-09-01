@@ -31,6 +31,11 @@ def test_readme_language_switcher_and_star() -> None:
         assert "license-MIT" not in text
         assert "LicenseRef-ZAI-ONE" in text
         assert "mcp-name: io.github.zai-one/telegram-ads-mcp" in text
+        assert "check_security.py" in text
+        assert "INSTALL.md" in text
+        assert "DevTools" in text
+        assert "mcp.json.example" in text
+        assert "write_gated" in text
         assert "don't fork" not in text.lower()
         assert "don’t fork" not in text.lower()
         assert "не форкайте" not in text.lower()
@@ -42,6 +47,11 @@ def test_install_md_stars_and_clone() -> None:
     assert "user/starred/zai-one/telegram-ads-mcp" in text
     assert "telegram-ads-mcp" in text
     assert "stel_token" in text.lower() or "STEL_TOKEN" in text or ".env" in text
+    assert "F12" in text
+    assert "Ctrl+Shift+I" in text
+    assert "Application" in text
+    assert "reload_session" in text
+    assert "do not ask" in text.lower() or "не проси" in text.lower()
     assert ".cursor/mcp.json" in text
     assert ".mcp.json" in text
     assert ".vscode/mcp.json" in text
@@ -62,7 +72,41 @@ def test_issue_template_forbids_secrets() -> None:
     tpl = (ROOT / ".github" / "ISSUE_TEMPLATE" / "request.yml").read_text(encoding="utf-8")
     cfg = (ROOT / ".github" / "ISSUE_TEMPLATE" / "config.yml").read_text(encoding="utf-8")
     assert "stel_token" in tpl.lower() or "cookies" in tpl.lower()
+    assert "confirm_hash" in tpl.lower()
+    assert "check_security.py" in tpl
     assert "t.me/zai_one" in tpl or "t.me/zai_one" in cfg
+    contrib = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "scripts/check_security.py" in contrib
+    assert "gh issue create" in contrib
+    assert "Found a bug → Issue" in contrib
+    assert "AGENTS.local.md" in contrib
+    assert "INSTALL.md" in cfg
+
+
+def test_gitignore_local_notes_not_client_playbook() -> None:
+    gi = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert ".env" in gi
+    assert "VERIFY.md" in gi
+    assert "previews/" in gi
+    assert "reports/" in gi
+    assert "AGENTS.local.md" in gi
+    assert "CLAUDE.local.md" in gi
+    assert "draft.md" in gi
+    assert "*.issue.md" in gi
+    for raw in gi.splitlines():
+        s = raw.strip()
+        if not s or s.startswith("#") or s.startswith("!"):
+            continue
+        assert s not in {"AGENTS.md", "/AGENTS.md", "**/AGENTS.md"}
+        assert "telegram_ads_mcp/AGENTS.md" not in s
+        assert "check_security.py" not in s
+        assert not s.startswith("tests/")
+    example = ROOT / "AGENTS.local.md.example"
+    assert example.is_file()
+    stub = example.read_text(encoding="utf-8")
+    assert "AGENTS.md" in stub
+    assert "STEL_TOKEN=" not in stub
+    assert len(stub.splitlines()) <= 8
 
 
 def test_agents_hygiene_and_gram() -> None:
@@ -72,9 +116,29 @@ def test_agents_hygiene_and_gram() -> None:
     assert "CONTRIBUTING.md" in text
     assert "TG_ADS_WRITE_GATE" in text
     assert "write_gated" in text
+    assert "would_send" in text
+    assert "access_denied" in text
+    assert "Target invalid" in text
+    assert "channels×langs" in text or "langs" in text
     assert "review-account" in text
+    assert "## Reports / stats" in text
+    assert "spend_scale" in text
+    assert "spend_already_scaled" in text
+    assert "values_already_scaled" in text
+    assert "get_ad_stats_csv" in text
+    assert "reports/" in text
+    assert "## Future service / contracts" in text
+    assert "telegram_ads_mcp/schemas/" in text
+    assert "does **not** echo" not in text
     assert "confirm_hash" in text
     assert "manage_funds" in text
+    assert "check_security.py" in text
+    assert "Found a bug → Issue" in text
+    assert "issues/new/choose" in text
+    assert "offer" in text.lower()
+    assert "F12" in text
+    assert "Ctrl+Shift+I" in text
+    assert "DevTools" in text
     assert not text.lstrip().startswith("---")
     packed = ROOT / "telegram_ads_mcp" / "AGENTS.md"
     assert packed.is_file()
@@ -111,3 +175,39 @@ def test_server_json_discovery() -> None:
     assert "Gram" in data["description"]
     assert len(data["description"]) <= 100
     assert "packages" not in data
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    import re
+    from telegram_ads_mcp import __version__
+
+    m = re.search(r'^version = "([^"]+)"', pyproject, re.M)
+    assert m and m.group(1) == data["version"] == __version__
+
+
+def test_mcp_json_example_has_no_secrets() -> None:
+    example = ROOT / "mcp.json.example"
+    assert example.is_file()
+    text = example.read_text(encoding="utf-8")
+    assert "telegram-ads-mcp" in text
+    assert "STEL_" not in text
+    assert "stel_token" not in text.lower()
+    assert "mcpServers" in text
+    install = (ROOT / "INSTALL.md").read_text(encoding="utf-8")
+    assert "mcp.json.example" in install
+
+
+def test_contracts_ship_in_wheel() -> None:
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "schemas/*.json" in pyproject
+    schemas = ROOT / "telegram_ads_mcp" / "schemas"
+    for name in (
+        "campaign-brief.schema.json",
+        "review-artifact.schema.json",
+        "stats-dump.schema.json",
+    ):
+        assert (schemas / name).is_file(), name
+    contrib = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "out of this repository" in contrib
+    assert "telegram_ads_mcp/schemas/" in contrib
+    backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+    assert "Campaign-setup SaaS" in backlog
+

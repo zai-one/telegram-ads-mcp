@@ -1,0 +1,5 @@
+# AGENTS.local.md
+
+Copy this stub to `AGENTS.local.md` (gitignored). Notes for hacking **this git repo**, not the ads cabinet.
+Do not put cookies, `.env`, `STEL_*`, or `confirm_hash` here.
+The client playbook remains `AGENTS.md` (copied to `telegram_ads_mcp/AGENTS.md` for `ads://playbook`).

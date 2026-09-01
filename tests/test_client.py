@@ -177,9 +177,20 @@ async def test_get_ad_stats_scales_gram_spend() -> None:
     await client.authenticate()
     stats = await client.get_ad_stats("35", period="5min")
     assert stats["ok"] is True
+    assert stats["period"] == "5min"
     spend = stats["summary"]["spend"]
     assert stats["summary"]["spend_scale"] == 1_000_000
+    assert stats["summary"]["spend_already_scaled"] is True
+    assert spend == 0.2688
     assert 0.05 < spend < 5
+    budget = stats["charts"]["budget"]
+    assert budget["values_already_scaled"] is True
+    assert budget["totals"]["Spent budget"] == 0.2688
+    assert 268800 not in (budget["totals"].get("Spent budget"),)
+    day = await client.get_ad_stats("35", period="day")
+    assert day["ok"] is True
+    assert day["period"] == "day"
+    assert day["summary"]["spend_already_scaled"] is True
     listing = await client.get_ads_list()
     item = listing["items"][0]
     assert item["target_type"] == "users"

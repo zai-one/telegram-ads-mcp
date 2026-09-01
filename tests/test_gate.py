@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from telegram_ads_mcp.gate import DEFAULT, gated, write_gate
+from telegram_ads_mcp.gate import DEFAULT, gated, sanitize_would_send, write_gate
 import telegram_ads_mcp.server as server_mod
 
 
@@ -23,6 +23,11 @@ def test_gated_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
     assert gated(cls="write", tool="edit_ad") is None
     spend = gated(cls="spend", tool="launch_ad")
     assert spend is not None and spend["code"] == "write_gated"
+    assert spend["ok"] is False
+    assert spend["sent"] is False
+    assert spend["tool"] == "launch_ad"
+    assert spend["class"] == "spend"
+    assert "would_send" in spend
     assert gated(cls="spend", tool="launch_ad", confirm=True) is None
 
     monkeypatch.setenv("TG_ADS_WRITE_GATE", "strict")
@@ -31,6 +36,44 @@ def test_gated_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("TG_ADS_WRITE_GATE", "open")
     assert gated(cls="danger", tool="manage_funds") is None
+
+
+def test_would_send_drops_secrets_not_a_dry_run() -> None:
+    cleaned = sanitize_would_send(
+        {
+            "title": "geo",
+            "budget": "1",
+            "confirm_hash": "abc123secret",
+            "stel_token": "cookie-value",
+            "media_base64": "AAAA",
+            "confirm": True,
+            "empty": "",
+        }
+    )
+    assert cleaned["title"] == "geo"
+    assert cleaned["budget"] == "1"
+    assert "confirm_hash" not in cleaned
+    assert "stel_token" not in cleaned
+    assert "media_base64" not in cleaned
+    assert cleaned["has_media_base64"] is True
+    assert "confirm" not in cleaned
+
+
+def test_gated_would_send_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TG_ADS_WRITE_GATE", "confirm")
+    blocked = gated(
+        cls="spend",
+        tool="launch_ad",
+        would_send={"title": "geo", "confirm_hash": "nope", "cpm": "0.15"},
+    )
+    assert blocked is not None
+    assert blocked["ok"] is False
+    assert blocked["sent"] is False
+    assert blocked["code"] == "write_gated"
+    assert blocked["would_send"]["title"] == "geo"
+    assert blocked["would_send"]["cpm"] == "0.15"
+    assert "confirm_hash" not in blocked["would_send"]
+    assert "ok" in blocked and blocked["ok"] is False
 
 
 @pytest.mark.asyncio
@@ -44,6 +87,10 @@ async def test_launch_ad_confirm_gate_blocks(monkeypatch: pytest.MonkeyPatch) ->
     assert out["ok"] is False
     assert out["code"] == "write_gated"
     assert out["class"] == "spend"
+    assert out["tool"] == "launch_ad"
+    assert out["sent"] is False
+    assert out["would_send"]["title"] == "geo"
+    assert out["would_send"]["cpm"] == "0.15"
 
 
 @pytest.mark.asyncio
@@ -95,6 +142,9 @@ async def test_funds_list_free_withdraw_gated(monkeypatch: pytest.MonkeyPatch) -
     blocked = await server_mod.manage_funds(action="withdraw", amount="1", account_id="x")
     assert blocked["code"] == "write_gated"
     assert blocked["class"] == "danger"
+    assert blocked["would_send"]["action"] == "withdraw"
+    assert blocked["would_send"]["amount"] == "1"
+    assert blocked["sent"] is False
 
 
 @pytest.mark.asyncio

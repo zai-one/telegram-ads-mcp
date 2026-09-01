@@ -122,3 +122,133 @@ async def test_launch_ad_users_on_ton_gram_calls_createAd() -> None:
     assert "createAd" in methods
     create_params = next(c.args[1] for c in fake.call.await_args_list if c.args[0] == "createAd")
     assert create_params["target_type"] == "users"
+
+
+@pytest.mark.asyncio
+async def test_launch_ad_passes_exclude_and_locations() -> None:
+    fake = _ton_gram_client()
+    fake.call.side_effect = [
+        {"ok": True},
+        {"ok": True, "ad_id": "42"},
+        {"ok": True},
+        {"ok": True},
+    ]
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        out = await server_mod.launch_ad(
+            title="geo",
+            promote_url="https://t.me/example_bot",
+            cpm="0.15",
+            target_type="users",
+            countries="BY",
+            locations="123",
+            exclude_user_topics="9",
+            exclude_topics="1",
+            topics="2",
+            budget="1",
+            confirm=True,
+        )
+    assert out.get("ok") is True
+    create_params = next(c.args[1] for c in fake.call.await_args_list if c.args[0] == "createAd")
+    assert create_params["locations"] == "123"
+    assert create_params["exclude_user_topics"] == "9"
+    assert create_params["exclude_topics"] == "1"
+    assert create_params["topics"] == "2"
+    assert "langs" not in create_params or create_params.get("langs") in (None, "")
+
+
+@pytest.mark.asyncio
+async def test_launch_ad_drops_langs_when_channels_set() -> None:
+    fake = _ton_gram_client()
+    fake.call.side_effect = [
+        {"ok": True},
+        {"ok": True, "ad_id": "7"},
+        {"ok": True},
+        {"ok": True},
+    ]
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        out = await server_mod.launch_ad(
+            title="ch",
+            promote_url="https://t.me/example",
+            cpm="0.2",
+            target_type="channels",
+            channels="111;222",
+            langs="1;2",
+            topics="3",
+            exclude_channels="999",
+            budget="1",
+            confirm=True,
+        )
+    assert out.get("ok") is True
+    assert "langs_omitted" in out["steps"]
+    create_params = next(c.args[1] for c in fake.call.await_args_list if c.args[0] == "createAd")
+    assert not create_params.get("langs")
+    assert create_params["channels"] == "111;222"
+    assert create_params["topics"] == "3"
+    assert create_params["exclude_channels"] == "999"
+
+
+@pytest.mark.asyncio
+async def test_launch_ad_sends_langs_without_channel_ids() -> None:
+    fake = _ton_gram_client()
+    fake.call.side_effect = [
+        {"ok": True},
+        {"ok": True, "ad_id": "8"},
+        {"ok": True},
+        {"ok": True},
+    ]
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        out = await server_mod.launch_ad(
+            title="lang-wide",
+            promote_url="https://t.me/example",
+            cpm="0.2",
+            target_type="channels",
+            langs="1;2",
+            budget="1",
+            confirm=True,
+        )
+    assert out.get("ok") is True
+    create_params = next(c.args[1] for c in fake.call.await_args_list if c.args[0] == "createAd")
+    assert create_params["langs"] == "1;2"
+
+
+@pytest.mark.asyncio
+async def test_audience_list_access_denied_is_structured() -> None:
+    fake = _ton_gram_client()
+    fake.call.return_value = {"error": "Access denied"}
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        out = await server_mod.manage_audience(action="list")
+    assert out["ok"] is False
+    assert out["code"] == "access_denied"
+    assert out["hint"] == "skip"
+    assert out["tool"] == "manage_audience"
+    assert out["action"] == "list"
+    fake.call.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_event_list_access_denied_is_structured() -> None:
+    fake = _ton_gram_client()
+    fake.call.return_value = {"error": "ACCESS_DENIED"}
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        out = await server_mod.manage_event(action="list")
+    assert out["ok"] is False
+    assert out["code"] == "access_denied"
+    assert out["hint"] == "skip"
+    assert out["tool"] == "manage_event"
+    fake.call.assert_awaited_once()
+
+
+def test_prompts_match_stats_contract() -> None:
+    diag = server_mod.diagnose_ad_prompt("35")
+    assert "35" in diag
+    assert "period=day" in diag
+    assert "do not divide" in diag.lower() or "already scaled" in diag.lower()
+    assert "spend_already_scaled" in diag
+    review = server_mod.review_account_prompt()
+    assert "already scaled" in review.lower()
+    assert "reports/" in review
+    assert "5 problem" in review
+    assert "one recommendation" in review.lower()
+    launch = server_mod.launch_campaign_prompt()
+    assert "already scaled" in launch.lower()
+    assert "reports/" in launch

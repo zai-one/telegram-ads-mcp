@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zai-one/telegram-ads-mcp/blob/master/telegram_ads_mcp/schemas/review-artifact.schema.json",
+  "title": "telegram-ads-mcp review-account artifact",
+  "description": "Output of prompt review-account. A later job may persist this JSON. IDs and money are strings. At most 5 problem ads and exactly one recommendation. No cookies, hashes, DevTools, or full charts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "cabinet", "currency", "write_gate", "problems", "recommendation"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "cabinet": { "type": "string", "description": "get_account cabinet, e.g. ton" },
+    "currency": { "type": "string", "description": "GRAM on a TON cabinet" },
+    "write_gate": { "type": "string", "enum": ["strict", "confirm", "open"] },
+    "problems": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ad_id", "status", "spent", "budget", "why"],
+        "properties": {
+          "ad_id": { "type": "string" },
+          "status": { "type": "string", "description": "Active / Stopped / on_hold / active as on the list" },
+          "spent": { "type": "string", "description": "Gram (TON), already in list units — do not divide" },
+          "budget": { "type": "string" },
+          "why": { "type": "string", "minLength": 1, "description": "one-line why this ad is a problem" }
+        }
+      }
+    },
+    "recommendation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Exactly one suggested change (pause xor CPM xor budget xor text). Do not apply until the operator asks."
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1",
+      "cabinet": "ton",
+      "currency": "GRAM",
+      "write_gate": "confirm",
+      "problems": [
+        {
+          "ad_id": "35",
+          "status": "Stopped",
+          "spent": "0.54",
+          "budget": "0",
+          "why": "Stopped with leftover daily_budget; increasing budget would resume delivery."
+        }
+      ],
+      "recommendation": "Pause ad 35 or leave Stopped; do not increase budget without confirm=true."
+    }
+  ]
+}

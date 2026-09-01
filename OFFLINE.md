@@ -1,21 +1,19 @@
 # Offline — what still needs a real cabinet
 
-Pushed as **0.2.0** on `master` (`de455b5` + local Gram parse fixes). Topics set. CI workflow is in-tree.
-
-Read-only Gram pass: header widget in **Gram**, `currency-ton`, user-geo ads (`trg_type=user`). **Not EUR.** Mutations still need an operator.
+Read-only Gram pass is in tree: header widget in **Gram**, `currency-ton`, user-geo ads (`trg_type=user`). **Not EUR.** Mutations still need an operator. A GitHub Release is not a substitute for these live write checks.
 
 Do remaining write checks on your machine against that **Gram** cabinet. Never paste cookies.
 
 ## Live checks
 
-1. **`uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp`** — confirm the wheel starts (stdio). Prefer clone + `uv --directory ABS_PATH run telegram-ads-mcp` so `.env` is found. Claude/Cursor config as in INSTALL.md (no `STEL_*` in the MCP `env` block).
+1. **`uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp`** — confirm the wheel starts (stdio). Prefer clone + `uv --directory ABS_PATH run telegram-ads-mcp` so `.env` is found. Claude/Cursor config as in INSTALL.md / `mcp.json.example` (no `STEL_*` in the MCP `env` block).
 2. **`get_account` balance** — Gram header widget (`js-header_owner_budget`). Must not report `cabinet: eur` on a Gram cabinet.
 3. **`get_ad`** — look at `source` (`getAd` / `html` / `getAdsList`).
 4. **`upload_media`** — 16:9 JPEG <5 MB and MP4 3–60s. Note which `/file/upload` `target` the platform accepts (`media` / `adMedia` / `ad_media` / `picture`); we should pin it.
 5. **`preview_ad`** — image in chat; also `previews/ad-*-*.png`. Pillow card, not the official UI screenshot.
 6. **`audience_id` on create/edit** — if ignored, drop the field.
-7. **`manage_audience(action="list")`** via `updateAudiencesState`.
-8. **`manage_event(action="list")`** via `updateEventsState`.
+7. **`manage_audience(action="list")`** via `updateAudiencesState`. Expect `code: access_denied` `hint: skip` on cabinets without the UI — do not retry-loop.
+8. **`manage_event(action="list")`** via `updateEventsState`. Same skip contract.
 9. **EUR** (optional, we have no EUR cabinet) — `currency-euro` + `target_type=users`.
 10. **Stars** — **skipped.** No Telegram Stars cabinet. Heuristic-only (README).
 11. **`search_targets(kind="bot", purpose="target")`** vs `purpose="promote"`.
@@ -25,13 +23,11 @@ Do remaining write checks on your machine against that **Gram** cabinet. Never p
 
 ## After live tests pass
 
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-# GitHub → Releases → paste CHANGELOG 0.2.0
-```
+Live writes in this file are **not done**. Do not tag from this checklist as if they were.
 
-Optional: rename default branch `master` → `main` (CI already listens to both). PyPI only after live tests.
+Tagged releases (CONTRIBUTING.md Version): bump `pyproject.toml`, `telegram_ads_mcp.__version__`, and `server.json` together; move CHANGELOG Unreleased into that version; push `master`; annotated tag `vX.Y.Z` on that commit; `gh release create`. Current published tag: GitHub Releases — not a leftover `v0.2.0` recipe.
+
+Optional: rename default branch `master` → `main` (CI already listens to both). PyPI only after live write checks.
 
 ## MCP 2 vs 1 (why we jumped)
 

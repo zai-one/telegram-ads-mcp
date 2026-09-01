@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.2.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.2.0"></a>
+  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.3.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.3.0"></a>
   <a href="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml"><img src="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-555555" alt="MCP 2.x"></a>
@@ -22,7 +22,7 @@
 
 <p align="center">
   Create, target, pause, and read stats from ads.telegram.org — from Claude, Cursor, or any MCP client.<br>
-  Cookies stay in <code>.env</code>. Never paste them into chat.
+  Cookies stay in <code>.env</code>. Never paste them into chat. DevTools clicks: <a href="INSTALL.md">INSTALL.md</a>.
 </p>
 
 <p align="center">
@@ -41,7 +41,17 @@ Telegram does not publish an advertiser API. This server wraps the logged-in ads
 
 Live cabinet is **TON**, billed in **Gram**. User-geo (`target_type=users`) works. Stars cabinets are refused (`code: stars_cabinet`). Unofficial — not Telegram.
 
-Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`.
+Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`. A blocked call returns `code: write_gated` with `tool` / `class` / `would_send` (intended args, no secrets) and `sent: false` — not a platform dry-run.
+
+## What's new in 0.3.0
+
+- **Stats.** `get_ad_stats` echoes request `period` (`5min` = last 24h, `day` = lifetime). `summary.spend` and `charts.budget` are already scaled — do not divide. No CSV tool; optional dump is gitignored `reports/`.
+- **Session.** Dead cookies: follow [INSTALL.md](INSTALL.md) DevTools clicks into `.env` only, then `reload_session`. Never paste values into chat.
+- **Bugs.** Offer a GitHub Issue (playbook **Found a bug → Issue**). Local draft: `uv run python scripts/check_security.py --issue draft.md` (prints `gh issue create`, does not open).
+- **Audience / events.** Access denied → `code: access_denied`, `hint: skip`. Do not retry.
+- **Create.** `launch_ad` takes `topics`, `exclude_*`, `locations`. Do not send `langs` with specific channel IDs (platform Target invalid).
+- **Later RK service.** JSON Schema in the wheel (`telegram_ads_mcp/schemas/`) names campaign brief / review / stats dump. This repo is not that service.
+- **Local notes.** `AGENTS.local.md` is gitignored. Client playbook stays `AGENTS.md`. MCP JSON without secrets: [mcp.json.example](mcp.json.example).
 
 ## Quick start
 
@@ -49,7 +59,7 @@ Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `con
 git clone https://github.com/zai-one/telegram-ads-mcp.git
 cd telegram-ads-mcp
 uv sync
-cp .env.example .env    # stel_token + stel_ssid from ads.telegram.org cookies
+cp .env.example .env    # STEL_TOKEN / STEL_SSID — DevTools steps in INSTALL.md; never paste into chat
 ```
 
 ```json
@@ -63,7 +73,7 @@ cp .env.example .env    # stel_token + stel_ssid from ads.telegram.org cookies
 }
 ```
 
-Agent setup (clone, config, **star**): copy [INSTALL.md](INSTALL.md) into the chat. Command: `telegram-ads-mcp` (alias `tg-ads-mcp`). After connect: `ads://playbook`. Prompts: `launch-campaign`, `review-account`, `diagnose-ad`. Client file names are in INSTALL.md (Cursor, Claude, VS Code `servers`, Codex TOML). Do not put cookies in MCP `env`.
+Agent setup (clone, config, **star**): copy [INSTALL.md](INSTALL.md) into the chat. Command: `telegram-ads-mcp` (alias `tg-ads-mcp`). After connect: `ads://playbook`. Prompts: `launch-campaign`, `review-account`, `diagnose-ad`. Client file names are in INSTALL.md (Cursor, Claude, VS Code `servers`, Codex TOML). Do not put cookies in MCP `env`. Example: [mcp.json.example](mcp.json.example).
 
 HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --port 8000` → `http://127.0.0.1:8000/mcp`.
 
@@ -77,13 +87,15 @@ HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --po
 | Targeting | `search_targets` `get_targeting_reference` |
 | Other | `manage_audience` `manage_event` `manage_funds` `save_api_settings` `revoke_token` `log_out` |
 
-Always create ads `on_hold`. `budget="0"` cannot go to review. Amounts are Gram strings. Search ads: no text / picture / media.
+Always create ads `on_hold`. `budget="0"` cannot go to review. Amounts are Gram strings. Search ads: no text / picture / media. `launch_ad` does not activate; it adds budget and sends review. Do not combine `langs` with specific `channels`.
 
 ## Issues
 
 I'm working on this. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). I will patch **this** repo.
 
-Use the form. Tick “no cookies”. Never paste `stel_token`, `stel_ssid`, `.env`, hashes, or DevTools screenshots.
+Use the form. Tick both “no cookies / no hashes” boxes. Never paste `stel_token`, `stel_ssid`, `.env`, `confirm_hash`, API `hash=`, or DevTools screenshots.
+
+Local draft: `uv run python scripts/check_security.py --issue draft.md` — prints `gh issue create` only if the draft is clean. It does not open the Issue.
 
 Support is **not guaranteed**. Issues are read when I can.
 

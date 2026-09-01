@@ -18,7 +18,14 @@ from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 from telegram_ads_mcp import __version__
 from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError
 from telegram_ads_mcp.gate import attach_gate, gated
-from telegram_ads_mcp.parse import filter_ads_by_status, map_status, redact
+from telegram_ads_mcp.parse import (
+    access_denied_payload,
+    channel_langs_conflict,
+    filter_ads_by_status,
+    looks_access_denied,
+    map_status,
+    redact,
+)
 from telegram_ads_mcp.preview import render_card
 from telegram_ads_mcp.session import fail_payload, get_client, reload_from_env, switch_account
 
@@ -59,8 +66,8 @@ mcp = MCPServer(
         "MCP server for ads.telegram.org. TON cabinet billed in Gram (say Gram or TON). "
         "User-geo (users) is allowed. Stars cabinets are refused — switch with "
         "list_accounts/select_account. Cookies live in .env only (STEL_TOKEN, STEL_SSID). "
-        "Never ask the user to paste cookies into chat; tell them to update .env and "
-        "call reload_session. TG_ADS_WRITE_GATE=strict|confirm|open (default confirm): "
+        "Never ask the user to paste cookies into chat; offer INSTALL.md DevTools steps; "
+        "they write .env on disk, then call reload_session. TG_ADS_WRITE_GATE=strict|confirm|open (default confirm): "
         "spend/destructive tools need confirm=true unless gate=open. "
         "Always create ads on_hold. launch_ad spends budget and sends review; it does not activate. "
         "Read ads://playbook at session start. Two jobs: cabinet vs this git repo — do not mix."
@@ -87,9 +94,20 @@ async def _client_or_fail(require_supported: bool = True):
         return None, attach_gate(fail_payload(exc))
 
 
-def _gate(cls: str, confirm: bool, tool: str) -> dict[str, Any] | None:
-    blocked = gated(cls=cls, confirm=confirm, tool=tool)
+def _gate(
+    cls: str,
+    confirm: bool,
+    tool: str,
+    would_send: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    blocked = gated(cls=cls, confirm=confirm, tool=tool, would_send=would_send)
     return attach_gate(blocked) if blocked else None
+
+
+def _maybe_access_denied(result: Any, *, tool: str, action: str) -> Any:
+    if looks_access_denied(result):
+        return access_denied_payload(result, tool=tool, action=action)
+    return result
 
 
 # ── resources / prompts ──────────────────────────────────────────────
@@ -122,12 +140,13 @@ def launch_campaign_prompt(
 ) -> str:
     return (
         f"Launch a {target_type} ad promoting {promote_url}.\n"
-        "1. check_session — if ok=false, tell the user to refresh .env cookies and reload_session.\n"
+        "1. check_session — if ok=false, offer INSTALL.md DevTools steps; they write .env (never paste into chat); then reload_session.\n"
         "2. get_account — TON cabinet, GRAM balance. Abort on Stars. Note write_gate.\n"
         "3. search_targets to resolve IDs.\n"
         "4. check_ad_post on the promote_url + text.\n"
         "5. launch_ad (on_hold + budget + review, does not activate). Pass confirm=true if write_gated.\n"
         "6. preview_ad and show the PNG to the user.\n"
+        "get_ad_stats spend is already scaled (do not divide). If you save a dump, gitignored reports/.\n"
     )
 
 
@@ -138,9 +157,10 @@ def review_account_prompt() -> str:
         "1. get_account — TON cabinet, currency=GRAM. Abort if Stars. Note write_gate.\n"
         "2. get_ads(status=active) and get_ads(status=on_hold). Use list spent/views/ctr; do not fetch stats for every ad.\n"
         "3. Pick at most 5 problem ads (Active with 0 views, or Stopped with leftover daily_budget, or CTR crash).\n"
-        "4. For each: get_ad_stats(period=5min) then period=day if needed. Compare summary.spend to list spent (same order of magnitude).\n"
+        "4. For each: get_ad_stats(period=5min) then period=day if needed. Compare summary.spend to list spent (same order of magnitude). Spend is already scaled — do not divide.\n"
         "5. preview_ad only if copy might be the issue.\n"
-        "6. Recommend at most one change (pause xor CPM xor budget xor text). Wait for the user before any write.\n"
+        "6. At most 5 problem ads and one recommendation, then stop. Wait for the user before any write.\n"
+        "If you save a dump, gitignored reports/<ad_id>-<period>.json (playbook allowlist).\n"
     )
 
 
@@ -149,6 +169,9 @@ def diagnose_ad_prompt(ad_id: str = "") -> str:
     return (
         f"Diagnose ad {ad_id or '(ask the user for ad_id)'}.\n"
         "Call get_ad, get_ad_stats(period=5min), preview_ad. "
+        "Use period=day when they need lifetime. Write the request period next to any dump. "
+        "Do not divide summary.spend (spend_already_scaled). Prefer summary.spend; "
+        "charts.budget is already scaled — not a second Gram figure to re-divide. "
         "Summarise views/clicks/CTR/spend and whether budget or status is blocking delivery."
     )
 
@@ -162,7 +185,7 @@ async def check_session() -> dict[str, Any]:
 
     Returns owner_id, cabinet (ton/eur/stars), currency, balance.
     Does not return api_hash or cookies. Stars cabinets are reported but not used.
-    If ok=false with code=auth, tell the user to refresh cookies in .env and call reload_session.
+    If ok=false with code=auth, offer INSTALL.md DevTools steps; they write .env (never paste into chat); then reload_session.
     """
     client, err = await _client_or_fail(require_supported=False)
     if err:
@@ -209,7 +232,7 @@ async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]
         owner_id: From list_accounts.
         confirm: Required when TG_ADS_WRITE_GATE=strict.
     """
-    blocked = _gate("write", confirm, "select_account")
+    blocked = _gate("write", confirm, "select_account", {"owner_id": owner_id})
     if blocked:
         return blocked
     try:
@@ -328,10 +351,40 @@ async def create_ad(
     Always create on_hold. Budget "0" cannot go to review. IDs are semicolon-separated.
     Search ads: do not pass text/picture/media.
     Empty strings are stripped and not sent.
+    Do not send langs together with specific channel IDs (platform Target invalid) —
+    langs is dropped in that case.
     confirm: required for spend (budget>0 or active) when TG_ADS_WRITE_GATE is not open.
     """
     spend = (budget and budget != "0") or map_status(active) == "1"
-    blocked = _gate("spend" if spend else "write", confirm, "create_ad")
+    langs_omitted = None
+    langs_sent = langs
+    if channel_langs_conflict(target_type, channels, langs):
+        langs_sent = None
+        langs_omitted = "langs omitted: channels×langs is Target invalid"
+    blocked = _gate(
+        "spend" if spend else "write",
+        confirm,
+        "create_ad",
+        {
+            "title": title,
+            "promote_url": promote_url,
+            "cpm": cpm,
+            "target_type": target_type,
+            "budget": budget,
+            "daily_budget": daily_budget,
+            "active": active,
+            "channels": channels,
+            "bots": bots,
+            "search_queries": search_queries,
+            "langs": langs_sent,
+            "topics": topics,
+            "exclude_topics": exclude_topics,
+            "exclude_channels": exclude_channels,
+            "countries": countries,
+            "locations": locations,
+            "audience_id": audience_id,
+        },
+    )
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -351,7 +404,7 @@ async def create_ad(
         "channels": channels,
         "bots": bots,
         "search_queries": search_queries,
-        "langs": langs,
+        "langs": langs_sent,
         "topics": topics,
         "exclude_topics": exclude_topics,
         "exclude_channels": exclude_channels,
@@ -388,6 +441,8 @@ async def create_ad(
     result = await client.call("createAd", params)
     if isinstance(result, dict):
         result.setdefault("ok", "error" not in result)
+        if langs_omitted:
+            result["langs_omitted"] = langs_omitted
     return result
 
 
@@ -427,7 +482,20 @@ async def edit_ad(
     """
     going_live = active is not None and map_status(active) == "1"
     spend = going_live or bool(budget_action)
-    blocked = _gate("spend" if spend else "write", confirm, "edit_ad")
+    blocked = _gate(
+        "spend" if spend else "write",
+        confirm,
+        "edit_ad",
+        {
+            "ad_id": ad_id,
+            "title": title,
+            "cpm": cpm,
+            "daily_budget": daily_budget,
+            "active": active,
+            "budget_action": budget_action,
+            "budget_amount": budget_amount,
+        },
+    )
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -490,7 +558,7 @@ async def delete_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool =
 
     confirm: TG_ADS_WRITE_GATE (danger). confirm_hash is the platform hash, not the gate.
     """
-    blocked = _gate("danger", confirm, "delete_ad")
+    blocked = _gate("danger", confirm, "delete_ad", {"ad_id": ad_id})
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -508,7 +576,7 @@ async def clone_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool = 
 
     Two-step confirm_hash (platform). confirm is TG_ADS_WRITE_GATE (write).
     """
-    blocked = _gate("write", confirm, "clone_ad")
+    blocked = _gate("write", confirm, "clone_ad", {"ad_id": ad_id})
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -532,7 +600,7 @@ async def check_ad_post(promote_url: str, text: str = "") -> dict[str, Any]:
 @mcp.tool(annotations=WRITE)
 async def send_target_to_review(ad_id: str, confirm: bool = False) -> dict[str, Any]:
     """Submit (or resubmit) targeting for review. Requires a non-zero budget. Spend-class gate."""
-    blocked = _gate("spend", confirm, "send_target_to_review")
+    blocked = _gate("spend", confirm, "send_target_to_review", {"ad_id": ad_id})
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -551,6 +619,15 @@ async def launch_ad(
     channels: str | None = None,
     bots: str | None = None,
     search_queries: str | None = None,
+    langs: str | None = None,
+    topics: str | None = None,
+    exclude_topics: str | None = None,
+    exclude_channels: str | None = None,
+    locations: str | None = None,
+    exclude_user_topics: str | None = None,
+    exclude_user_channels: str | None = None,
+    exclude_politic: bool = False,
+    exclude_crypto: bool = False,
     budget: str = "1",
     daily_budget: str = "0",
     media: str | None = None,
@@ -566,9 +643,37 @@ async def launch_ad(
     Spends `budget` (default 1 Gram) and sends targeting to review. Not go-live.
     Returns each step so you can see which one failed. Prefer this over calling
     create_ad + edit_ad + send_target_to_review by hand.
+    Safe targeting subset vs create_ad: topics, exclude_*, locations, user_langs/user_topics.
+    Do not send langs together with specific channel IDs (platform Target invalid);
+    langs is dropped in that case. Full field set remains on create_ad.
     confirm: required unless TG_ADS_WRITE_GATE=open.
     """
-    blocked = _gate("spend", confirm, "launch_ad")
+    would = {
+            "title": title,
+            "promote_url": promote_url,
+            "cpm": cpm,
+            "target_type": target_type,
+            "channels": channels,
+            "bots": bots,
+            "search_queries": search_queries,
+            "langs": langs,
+            "topics": topics,
+            "exclude_topics": exclude_topics,
+            "exclude_channels": exclude_channels,
+            "locations": locations,
+            "countries": countries,
+            "budget": budget,
+            "daily_budget": daily_budget,
+            "skip_review": skip_review,
+        }
+    if channel_langs_conflict(target_type, channels, langs):
+        would["langs_omitted"] = "channels×langs is Target invalid"
+    blocked = _gate(
+        "spend",
+        confirm,
+        "launch_ad",
+        would,
+    )
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -588,6 +693,15 @@ async def launch_ad(
         channels=channels,
         bots=bots,
         search_queries=search_queries,
+        langs=langs,
+        topics=topics,
+        exclude_topics=exclude_topics,
+        exclude_channels=exclude_channels,
+        locations=locations,
+        exclude_user_topics=exclude_user_topics,
+        exclude_user_channels=exclude_user_channels,
+        exclude_politic=exclude_politic,
+        exclude_crypto=exclude_crypto,
         budget="0",
         daily_budget=daily_budget,
         active="on_hold",
@@ -599,6 +713,8 @@ async def launch_ad(
         confirm=confirm,
     )
     steps["create"] = created
+    if isinstance(created, dict) and created.get("langs_omitted"):
+        steps["langs_omitted"] = created["langs_omitted"]
     ad_id = None
     if isinstance(created, dict):
         ad_id = created.get("ad_id") or (created.get("ad") or {}).get("ad_id") or created.get("id")
@@ -671,7 +787,17 @@ async def upload_media(
     Pass a local file_path OR media_base64 (+ filename). Returns a media hash
     to feed into create_ad(media=...) / edit_ad(media=...).
     """
-    blocked = _gate("write", confirm, "upload_media")
+    blocked = _gate(
+        "write",
+        confirm,
+        "upload_media",
+        {
+            "filename": filename,
+            "ad_id": ad_id,
+            "has_file_path": bool(file_path),
+            "media_base64": media_base64,
+        },
+    )
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -688,6 +814,12 @@ async def get_ad_stats(ad_id: str, period: Literal["5min", "day"] = "5min") -> d
     """Time-bucketed stats plus CTR / CPC / actual CPM.
 
     period=5min → last 24h in 5-minute buckets. period=day → full lifetime daily.
+    Success JSON echoes the request `period` (`5min`/`day`). `summary.period` is a
+    span label (`24h`/`Nd`), not the request arg.
+    `summary.spend` is already scaled (Gram on a TON cabinet); `spend_already_scaled`
+    is true; `spend_scale` stays for compatibility. Do not divide again.
+    `charts.budget` series/totals are scaled the same way (`values_already_scaled`).
+    Prefer `summary.spend`. No CSV tool — if you save a file, gitignored `reports/`.
     """
     client, err = await _client_or_fail()
     if err:
@@ -785,11 +917,22 @@ async def manage_audience(
 
     create: pass file_path (one user id per line) or user_ids=[...].
     delete/clone: two-step confirm_hash (platform). confirm is TG_ADS_WRITE_GATE.
-    list is not gated.
+    list is not gated. Access denied → code:access_denied, hint:skip (do not retry).
     """
     if action != "list":
         cls = "danger" if action == "delete" else "write"
-        blocked = _gate(cls, confirm, "manage_audience")
+        blocked = _gate(
+            cls,
+            confirm,
+            "manage_audience",
+            {
+                "action": action,
+                "audience_id": audience_id,
+                "title": title,
+                "has_file_path": bool(file_path),
+                "has_user_ids": bool(user_ids),
+            },
+        )
         if blocked:
             return blocked
     client, err = await _client_or_fail()
@@ -797,9 +940,7 @@ async def manage_audience(
         return err
     if action == "list":
         result = await client.call("updateAudiencesState", {"owner_id": client.owner_id})
-        if isinstance(result, dict):
-            result.setdefault("ok", True)
-        return result
+        return _maybe_access_denied(result, tool="manage_audience", action="list")
     if action == "create":
         path = file_path
         tmp = None
@@ -818,22 +959,34 @@ async def manage_audience(
                     Path(tmp).unlink(missing_ok=True)
                 except OSError:
                     pass
-        return result
+        return _maybe_access_denied(result, tool="manage_audience", action="create")
     if action == "rename":
-        return await client.call(
-            "editAudienceTitle",
-            {"owner_id": client.owner_id, "audience_id": audience_id, "title": title},
+        return _maybe_access_denied(
+            await client.call(
+                "editAudienceTitle",
+                {"owner_id": client.owner_id, "audience_id": audience_id, "title": title},
+            ),
+            tool="manage_audience",
+            action="rename",
         )
     if action == "delete":
         params: dict[str, Any] = {"owner_id": client.owner_id, "audience_id": audience_id}
         if confirm_hash:
             params["confirm_hash"] = confirm_hash
-        return await client.call("deleteAudience", params)
+        return _maybe_access_denied(
+            await client.call("deleteAudience", params),
+            tool="manage_audience",
+            action="delete",
+        )
     if action == "clone":
         params = {"owner_id": client.owner_id, "audience_id": audience_id}
         if confirm_hash:
             params["confirm_hash"] = confirm_hash
-        return await client.call("createDraftFromAudience", params)
+        return _maybe_access_denied(
+            await client.call("createDraftFromAudience", params),
+            tool="manage_audience",
+            action="clone",
+        )
     return {"ok": False, "error": f"unknown action {action}"}
 
 
@@ -849,28 +1002,57 @@ async def manage_event(
     """Conversion events and pixels. action=list|create|rename|delete|create_pixel.
 
     list is not gated. delete is danger + two-step confirm_hash.
+    Access denied → code:access_denied, hint:skip (do not retry).
     """
     if action != "list":
         cls = "danger" if action == "delete" else "write"
-        blocked = _gate(cls, confirm, "manage_event")
+        blocked = _gate(
+            cls,
+            confirm,
+            "manage_event",
+            {"action": action, "event_id": event_id, "title": title, "event_type": event_type},
+        )
         if blocked:
             return blocked
     client, err = await _client_or_fail()
     if err:
         return err
     if action == "list":
-        return await client.call("updateEventsState", {"owner_id": client.owner_id})
+        return _maybe_access_denied(
+            await client.call("updateEventsState", {"owner_id": client.owner_id}),
+            tool="manage_event",
+            action="list",
+        )
     if action == "create":
-        return await client.call("createEvent", {"owner_id": client.owner_id, "title": title, "type": event_type})
+        return _maybe_access_denied(
+            await client.call("createEvent", {"owner_id": client.owner_id, "title": title, "type": event_type}),
+            tool="manage_event",
+            action="create",
+        )
     if action == "rename":
-        return await client.call("editEventTitle", {"owner_id": client.owner_id, "event_id": event_id, "title": title})
+        return _maybe_access_denied(
+            await client.call(
+                "editEventTitle",
+                {"owner_id": client.owner_id, "event_id": event_id, "title": title},
+            ),
+            tool="manage_event",
+            action="rename",
+        )
     if action == "delete":
         params: dict[str, Any] = {"owner_id": client.owner_id, "event_id": event_id}
         if confirm_hash:
             params["confirm_hash"] = confirm_hash
-        return await client.call("deleteEvent", params)
+        return _maybe_access_denied(
+            await client.call("deleteEvent", params),
+            tool="manage_event",
+            action="delete",
+        )
     if action == "create_pixel":
-        return await client.call("createPixel", {"owner_id": client.owner_id})
+        return _maybe_access_denied(
+            await client.call("createPixel", {"owner_id": client.owner_id}),
+            tool="manage_event",
+            action="create_pixel",
+        )
     return {"ok": False, "error": f"unknown action {action}"}
 
 
@@ -890,7 +1072,12 @@ async def manage_funds(
     transfer/withdraw = money moves in this one call — no confirm_hash. Danger gate.
     """
     if action in {"add", "transfer", "withdraw"}:
-        blocked = _gate("danger", confirm, "manage_funds")
+        blocked = _gate(
+            "danger",
+            confirm,
+            "manage_funds",
+            {"action": action, "amount": amount, "account_id": account_id},
+        )
         if blocked:
             return blocked
     client, err = await _client_or_fail()
@@ -932,7 +1119,7 @@ async def manage_funds(
 @mcp.tool(annotations=DEST)
 async def revoke_token(confirm: bool = False) -> dict[str, Any]:
     """Revoke and regenerate the cabinet API token (IP-whitelist token, not ads cookies)."""
-    blocked = _gate("danger", confirm, "revoke_token")
+    blocked = _gate("danger", confirm, "revoke_token", {"action": "revoke_token"})
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -944,7 +1131,7 @@ async def revoke_token(confirm: bool = False) -> dict[str, Any]:
 @mcp.tool(annotations=WRITE)
 async def save_api_settings(ip_list: str, confirm: bool = False) -> dict[str, Any]:
     """Set the IP whitelist for the cabinet API token. Newline-separated IPs."""
-    blocked = _gate("danger", confirm, "save_api_settings")
+    blocked = _gate("danger", confirm, "save_api_settings", {"ip_list": ip_list})
     if blocked:
         return blocked
     client, err = await _client_or_fail()
@@ -956,7 +1143,7 @@ async def save_api_settings(ip_list: str, confirm: bool = False) -> dict[str, An
 @mcp.tool(annotations=DEST)
 async def log_out(confirm: bool = False) -> dict[str, Any]:
     """Log out of ads.telegram.org for this session. You will need fresh cookies in .env afterwards."""
-    blocked = _gate("danger", confirm, "log_out")
+    blocked = _gate("danger", confirm, "log_out", {"action": "log_out"})
     if blocked:
         return blocked
     client, err = await _client_or_fail(require_supported=False)

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "telegram-ads": {
+      "command": "uv",
+      "args": ["--directory", "/absolute/path/to/telegram-ads-mcp", "run", "telegram-ads-mcp"]
+    }
+  }
+}

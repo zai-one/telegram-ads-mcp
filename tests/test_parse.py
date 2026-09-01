@@ -8,11 +8,15 @@ from telegram_ads_mcp.parse import (
     extract_currency,
     extract_json_value,
     filter_ads_by_status,
+    access_denied_payload,
+    channel_langs_conflict,
+    looks_access_denied,
     map_status,
     normalize_ad,
     parse_accounts,
     parse_chart,
     redact,
+    scale_budget_chart,
     scale_chart_spend,
     strip_empty,
 )
@@ -102,6 +106,12 @@ def test_gram_chart_spend_scale() -> None:
     assert scaled == 0.2688
     # Same order of magnitude as ad-list spent ~0.54, not ~1e6.
     assert 0.05 < scaled < 5
+    budget = scale_budget_chart(chart, chart_spend_scale(html))
+    assert budget["values_already_scaled"] is True
+    assert budget["totals"]["Spent budget"] == 0.2688
+    assert budget["series"]["Spent budget"] == [0.1, 0.1688]
+    # Parser stays raw; get_ad_stats scales a copy.
+    assert chart["totals"]["Spent budget"] == 268800
 
 
 def test_parse_accounts_from_hrefs() -> None:
@@ -116,6 +126,39 @@ def test_parse_accounts_from_hrefs() -> None:
     assert "new" in ids
     acme = next(a for a in accounts if a["owner_id"] == "abc123")
     assert acme["title"] == "Acme TON"
+
+
+def test_parse_accounts_prefers_json_state() -> None:
+    html = """
+    <script>{"accounts":[{"id":"json1","title":"From JSON","description":"TON"}]}</script>
+    <a href="/choose_account/href1"><div class="pr-account-button-title">From href</div></a>
+    """
+    accounts = parse_accounts(html)
+    assert [a["owner_id"] for a in accounts] == ["json1"]
+    assert accounts[0]["title"] == "From JSON"
+
+
+def test_access_denied_helper() -> None:
+    assert looks_access_denied({"error": "ACCESS_DENIED"})
+    assert looks_access_denied({"error": "Access denied"})
+    assert looks_access_denied("Access denied")
+    assert not looks_access_denied({"ok": True, "items": []})
+    payload = access_denied_payload({"error": "Access denied"}, tool="manage_audience", action="list")
+    assert payload == {
+        "ok": False,
+        "code": "access_denied",
+        "hint": "skip",
+        "tool": "manage_audience",
+        "action": "list",
+        "error": "Access denied",
+    }
+
+
+def test_channel_langs_conflict() -> None:
+    assert channel_langs_conflict("channels", "111", "1;2") is True
+    assert channel_langs_conflict("channels", None, "1;2") is False
+    assert channel_langs_conflict("users", "111", "1;2") is False
+    assert channel_langs_conflict("channels", "111", None) is False
 
 
 def test_parse_chart_and_metrics() -> None:

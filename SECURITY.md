@@ -3,6 +3,7 @@
 `STEL_TOKEN` / `STEL_SSID` are a full login to the advertiser cabinet. Anyone holding them can spend the balance.
 
 - Keep them in `.env` (gitignored). Never commit, never paste into chat, **GitHub issues**, PRs, or tool arguments. Use the issue form; contact for EUR/Stars is https://t.me/zai_one only.
+- Client Issue ritual: [AGENTS.md](AGENTS.md) **Found a bug → Issue**. Before commit or a draft: `uv run python scripts/check_security.py` (`--issue path.md` prints `gh issue create` or refuses; never opens).
 - `reload_session` re-reads `.env`. There is no `update_cookies` tool.
 - `check_session` does not return `api_hash`.
 - Logs go to stderr with cookie/hash redaction. Do not attach raw logs to tickets.

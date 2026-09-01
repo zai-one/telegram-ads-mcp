@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zai-one/telegram-ads-mcp/blob/master/telegram_ads_mcp/schemas/campaign-brief.schema.json",
+  "title": "telegram-ads-mcp campaign brief",
+  "description": "Maps 1:1 to MCP launch_ad (short) or create_ad (full targeting). Always create on_hold; activate is a later edit_ad(active=active) with a human confirm. Stars cabinets refused. Money and IDs are strings. Semicolon-separated IDs from search_targets / get_targeting_reference, not @names. Search ads: no text/picture/media. write_gate + confirm is TG_ADS_WRITE_GATE, not platform confirm_hash. No cookies.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tool", "title", "promote_url", "cpm", "target_type", "active"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "tool": {
+      "type": "string",
+      "enum": ["launch_ad", "create_ad"],
+      "description": "launch_ad = on_hold + budget + send_target_to_review, does not activate. create_ad = full targeting fields; still on_hold."
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "promote_url": { "type": "string", "minLength": 1 },
+    "cpm": { "type": "string", "description": "Gram (TON) CPM as a decimal string." },
+    "target_type": { "type": "string", "enum": ["channels", "bots", "search", "users"] },
+    "active": {
+      "const": "on_hold",
+      "description": "Create always on_hold. Go-live is a separate explicit edit_ad."
+    },
+    "budget": { "type": "string", "description": "launch_ad default \"1\" Gram. create_ad \"0\" cannot go to review." },
+    "daily_budget": { "type": "string" },
+    "text": { "type": "string" },
+    "channels": { "type": "string", "description": "semicolon-separated channel IDs, not @names" },
+    "bots": { "type": "string", "description": "semicolon-separated bot IDs, not @names" },
+    "search_queries": { "type": "string" },
+    "langs": { "type": "string", "description": "channel-ad language IDs; not user_langs. Do not combine with specific channels (Target invalid)." },
+    "topics": { "type": "string", "description": "channel-ad topic IDs from get_targeting_reference" },
+    "exclude_topics": { "type": "string" },
+    "exclude_channels": { "type": "string" },
+    "conversion_event": { "type": "string" },
+    "button": { "type": "string" },
+    "audience_id": { "type": "string" },
+    "countries": { "type": "string", "description": "users geo: semicolon country IDs" },
+    "locations": { "type": "string" },
+    "user_langs": { "type": "string" },
+    "user_topics": { "type": "string" },
+    "user_channels": { "type": "string" },
+    "intersect_topics": { "type": "boolean" },
+    "exclude_user_topics": { "type": "string" },
+    "exclude_user_channels": { "type": "string" },
+    "exclude_politic": { "type": "boolean" },
+    "exclude_crypto": { "type": "boolean" },
+    "only_politic": { "type": "boolean" },
+    "only_crypto": { "type": "boolean" },
+    "device": { "type": "string" },
+    "views_per_user": { "type": "string" },
+    "picture": { "type": "boolean" },
+    "media": { "type": "string", "description": "upload_media hash; empty/omit for search ads" },
+    "website_name": { "type": "string" },
+    "activate_date": { "type": "string" },
+    "deactivate_date": { "type": "string" },
+    "schedule": { "type": "string" },
+    "schedule_tz": { "type": "string" },
+    "schedule_tz_custom": { "type": "string" },
+    "skip_review": { "type": "boolean", "description": "launch_ad only. Default false: send_target_to_review." },
+    "write_gate": { "type": "string", "enum": ["strict", "confirm", "open"] },
+    "confirm": {
+      "type": "boolean",
+      "description": "TG_ADS_WRITE_GATE confirm=. Spend/review need true unless gate=open. Not platform confirm_hash."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "target_type": { "const": "search" } },
+        "required": ["target_type"]
+      },
+      "then": {
+        "properties": {
+          "text": { "maxLength": 0 },
+          "picture": { "const": false }
+        },
+        "not": { "required": ["media"] }
+      }
+    },
+    {
+      "if": {
+        "properties": { "tool": { "const": "launch_ad" } },
+        "required": ["tool"]
+      },
+      "then": {
+        "description": "launch_ad: on_hold + budget + review. Safe targeting subset: topics, exclude_*, locations, user_*. Do not send langs together with specific channels (platform Target invalid)."
+      }
+    }
+  ],
+  "examples": [
+    {
+      "schema_version": "1",
+      "tool": "launch_ad",
+      "title": "geo-by",
+      "promote_url": "https://t.me/example_bot",
+      "cpm": "0.15",
+      "target_type": "users",
+      "active": "on_hold",
+      "budget": "1",
+      "countries": "BY;KZ",
+      "write_gate": "confirm",
+      "confirm": true
+    }
+  ]
+}

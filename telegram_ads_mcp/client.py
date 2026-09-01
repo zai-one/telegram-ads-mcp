@@ -14,6 +14,7 @@ from urllib.parse import urljoin
 import anyio
 import httpx
 
+from telegram_ads_mcp import __version__
 from telegram_ads_mcp.parse import (
     chart_spend_scale,
     detect_cabinet,
@@ -27,6 +28,7 @@ from telegram_ads_mcp.parse import (
     parse_accounts,
     parse_chart,
     redact,
+    scale_budget_chart,
     scale_chart_spend,
     strip_empty,
     unescape_names,
@@ -35,7 +37,7 @@ from telegram_ads_mcp.parse import (
 log = logging.getLogger("telegram_ads_mcp.client")
 
 BASE_URL = "https://ads.telegram.org"
-USER_AGENT = "telegram-ads-mcp/0.2.0"
+USER_AGENT = f"telegram-ads-mcp/{__version__}"
 
 
 class AuthError(Exception):
@@ -368,7 +370,7 @@ class TelegramAdsClient:
         try:
             resp = await self._get_html(f"/account/ad/{ad_id}/stats?period={period}", follow_redirects=True)
             if resp.status_code != 200:
-                return {"ok": False, "error": f"HTTP {resp.status_code}", "ad_id": ad_id}
+                return {"ok": False, "error": f"HTTP {resp.status_code}", "ad_id": ad_id, "period": period}
             html = resp.text
             charts: dict[str, Any] = {}
             mapping = {
@@ -418,10 +420,14 @@ class TelegramAdsClient:
                     continue
             scale = chart_spend_scale(html)
             spend = scale_chart_spend(spend, scale)
+            budget_chart = charts.get("budget")
+            if isinstance(budget_chart, dict):
+                charts["budget"] = scale_budget_chart(budget_chart, scale)
             metrics = derived_metrics(views, clicks, spend)
             return {
                 "ok": True,
                 "ad_id": ad_id,
+                "period": period,
                 "charts": charts,
                 "summary": {
                     "period": label,
@@ -431,6 +437,7 @@ class TelegramAdsClient:
                     "started_bot": started,
                     "spend": spend,
                     "spend_scale": scale,
+                    "spend_already_scaled": True,
                     **metrics,
                 },
             }

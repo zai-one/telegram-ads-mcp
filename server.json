@@ -3,7 +3,7 @@
   "name": "io.github.zai-one/telegram-ads-mcp",
   "title": "Telegram Ads",
   "description": "Unofficial MCP for ads.telegram.org. TON cabinet, currency Gram.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "websiteUrl": "https://github.com/zai-one/telegram-ads-mcp/blob/master/INSTALL.md",
   "repository": {
     "url": "https://github.com/zai-one/telegram-ads-mcp",

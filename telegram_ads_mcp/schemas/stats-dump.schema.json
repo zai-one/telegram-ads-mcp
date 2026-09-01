@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zai-one/telegram-ads-mcp/blob/master/telegram_ads_mcp/schemas/stats-dump.schema.json",
+  "title": "telegram-ads-mcp stats dump",
+  "description": "Allowlisted get_ad_stats persistence shape. period is the request arg (5min/day), not summary.period (24h/Nd). spend is already scaled; spend_already_scaled must be true. No cookies, hashes, DevTools, or charts (including raw charts.budget). Optional file: gitignored reports/<ad_id>-<period>.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "ad_id", "period", "summary"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "ad_id": { "type": "string" },
+    "period": {
+      "type": "string",
+      "enum": ["5min", "day"],
+      "description": "Request argument echoed by get_ad_stats. 5min = last 24h; day = lifetime."
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spend", "spend_already_scaled"],
+      "properties": {
+        "spend": {
+          "type": ["number", "string"],
+          "description": "Gram on a TON cabinet; already divided by spend_scale. Do not divide again."
+        },
+        "spend_already_scaled": { "const": true },
+        "spend_scale": { "type": "number", "description": "Compatibility; usually 1000000 on Gram." },
+        "views": { "type": "number" },
+        "clicks": { "type": "number" },
+        "ctr": { "type": ["number", "null"] },
+        "cpc": { "type": ["number", "null"] },
+        "cpm_actual": { "type": ["number", "null"] },
+        "period": {
+          "type": "string",
+          "description": "Span label only (24h / Nd). Not the request arg."
+        },
+        "interval_seconds": { "type": "number" },
+        "started_bot": { "type": "number" }
+      }
+    },
+    "spent": { "type": ["string", "number"], "description": "List spent, Gram." },
+    "cpm": { "type": ["string", "number"] },
+    "budget": { "type": ["string", "number"] },
+    "active": { "type": ["string", "number"] },
+    "path": {
+      "type": "string",
+      "description": "Optional gitignored reports/<ad_id>-<period>.json"
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1",
+      "ad_id": "35",
+      "period": "5min",
+      "summary": {
+        "spend": 0.2688,
+        "spend_already_scaled": true,
+        "spend_scale": 1000000,
+        "views": 30,
+        "clicks": 1,
+        "ctr": 0.033333,
+        "cpc": 0.2688,
+        "cpm_actual": 8.96,
+        "period": "24h",
+        "interval_seconds": 300
+      },
+      "spent": "0.54",
+      "cpm": "0.15",
+      "budget": "1",
+      "active": "1",
+      "path": "reports/35-5min.json"
+    }
+  ]
+}

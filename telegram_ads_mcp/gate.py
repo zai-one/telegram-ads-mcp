@@ -21,6 +21,22 @@ NEEDS_CONFIRM = {
     "open": frozenset(),
 }
 
+_SECRET_WOULD_SEND = frozenset(
+    {
+        "confirm_hash",
+        "stel_token",
+        "stel_ssid",
+        "stel_adowner",
+        "api_hash",
+        "cookie",
+        "cookies",
+        "media_base64",
+        "password",
+        "token",
+        "ssid",
+    }
+)
+
 
 def write_gate() -> str:
     raw = (os.environ.get("TG_ADS_WRITE_GATE") or DEFAULT).strip().lower()
@@ -35,20 +51,51 @@ def attach_gate(data: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def gated(*, cls: str, confirm: bool = False, tool: str = "") -> dict[str, Any] | None:
-    """Return a write_gated payload, or None if the call may proceed."""
+def sanitize_would_send(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """Intended args for a gated call. Drops secrets and empty values. Not a dry-run result."""
+    if not payload:
+        return {}
+    out: dict[str, Any] = {}
+    for key, value in payload.items():
+        low = str(key).lower()
+        if low in _SECRET_WOULD_SEND or low.startswith("stel_"):
+            if low == "media_base64" and value:
+                out["has_media_base64"] = True
+            continue
+        if key in {"confirm", "confirm_hash"}:
+            continue
+        if value is None or value == "":
+            continue
+        out[key] = value
+    return out
+
+
+def gated(
+    *,
+    cls: str,
+    confirm: bool = False,
+    tool: str = "",
+    would_send: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Return a write_gated payload, or None if the call may proceed.
+
+    ok is always False. This is not a platform dry-run and nothing was sent.
+    """
     if cls in {"read", "auth"}:
         return None
     g = write_gate()
     needed = NEEDS_CONFIRM.get(g, NEEDS_CONFIRM[DEFAULT])
     if confirm or cls not in needed:
         return None
-    return {
+    payload: dict[str, Any] = {
         "ok": False,
         "code": "write_gated",
         "write_gate": g,
         "class": cls,
         "tool": tool,
+        "sent": False,
         "error": f"{tool or 'this tool'} is gated ({g}/{cls}). {HINTS[g]}",
         "hint": "Re-call with confirm=true after the operator agrees, or set TG_ADS_WRITE_GATE in .env.",
+        "would_send": sanitize_would_send(would_send),
     }
+    return payload
