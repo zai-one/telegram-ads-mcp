@@ -101,6 +101,8 @@ HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --po
 
 Нужны кабинеты **EUR** или **Stars** (здесь их нет в live)? Напишите в Telegram: [t.me/zai_one](https://t.me/zai_one). Можно обсудить доступ. Cookies в issue не класть.
 
-[ZAI.ONE](https://zai.one) · [contact@zai.one](mailto:contact@zai.one) · [Telegram](https://t.me/zai_one)
+## Кто делает этот MCP
+
+[ZAI.ONE](https://zai.one) — интернет-агентство: сайты, SEO, реклама и аналитика. Мы также создаём инструменты, которые подключают AI-ассистентов к рабочим задачам. [Напишите в Telegram](https://t.me/zai_one), чтобы обсудить настройку, автоматизацию или внедрение для вашей команды.
 
 LicenseRef-ZAI-ONE · [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · [откройте issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose)

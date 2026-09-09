@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Explain ZAI.ONE as a digital agency and link integration support in English and Russian.
+
 ## 0.3.0 — 2026-09-01
 
 Operator-facing: stats contract, Issue ritual, DevTools cookie walkthrough, structured skips, safer `launch_ad` targeting.
