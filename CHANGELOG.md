@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `uv.lock`: MCP Python SDK 2.1.1 → 2.3.0 (fixes, no API changes for this server; `pyproject.toml` range `mcp>=2.1.1,<3` unchanged).
 - Explain ZAI.ONE as a digital agency and link integration support in English and Russian.
 
 ## 0.3.0 — 2026-09-01
