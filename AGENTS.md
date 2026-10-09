@@ -26,6 +26,10 @@ Blocked call: `code: "write_gated"` with `tool`, `class`, `would_send` (intended
 
 Two jobs — do not mix unless they asked both: **cabinet** (`review-account`) vs **this git repo**.
 
+## Updates
+
+`check_session` may include `update_hint`. Then call `check_update` and tell the user the version and `update_command`. Do not run the command yourself unless they ask. `status: unavailable` is not an error; do not retry.
+
 ## Found a bug → Issue
 
 Issues are for **MCP clients** (this playbook), not only people hacking the git repo.

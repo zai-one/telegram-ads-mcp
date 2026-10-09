@@ -28,6 +28,7 @@ from telegram_ads_mcp.parse import (
 )
 from telegram_ads_mcp.preview import render_card
 from telegram_ads_mcp.session import fail_payload, get_client, reload_from_env, switch_account
+from telegram_ads_mcp.update_check import cached_update_hint, check_for_update, refresh_in_background
 
 load_dotenv()
 
@@ -58,6 +59,9 @@ READ = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_h
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
 DEST = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True)
 
+# Cache-only update hint: startup never waits on the network.
+_STARTUP_UPDATE_HINT = cached_update_hint()
+
 mcp = MCPServer(
     name="telegram-ads-mcp",
     title="Telegram Ads",
@@ -71,6 +75,7 @@ mcp = MCPServer(
         "spend/destructive tools need confirm=true unless gate=open. "
         "Always create ads on_hold. launch_ad spends budget and sends review; it does not activate. "
         "Read ads://playbook at session start. Two jobs: cabinet vs this git repo — do not mix."
+        + (f" {_STARTUP_UPDATE_HINT}" if _STARTUP_UPDATE_HINT else "")
     ),
     website_url="https://github.com/zai-one/telegram-ads-mcp",
 )
@@ -192,9 +197,25 @@ async def check_session() -> dict[str, Any]:
         return err
     try:
         await client.authenticate()
-        return attach_gate(await client.get_account())
+        info = attach_gate(await client.get_account())
     except (AuthError, ConfigError, StarsCabinetError) as exc:
         return attach_gate(fail_payload(exc))
+    hint = cached_update_hint()
+    if hint:
+        info["update_hint"] = hint
+    return info
+
+
+@mcp.tool(annotations=READ)
+def check_update(force: bool = False) -> dict[str, Any]:
+    """Check GitHub for a newer telegram-ads-mcp release; suggest only, never install.
+
+    Returns current/latest version, release notes link and the update command.
+    One anonymous GitHub API call (3 s timeout), cached 24h unless force=true.
+    Offline -> status=unavailable. Disable with TG_ADS_DISABLE_UPDATE_CHECK=1.
+    Tell the user the command; do not run it yourself unless they ask.
+    """
+    return check_for_update(force=bool(force))
 
 
 @mcp.tool(annotations=WRITE)
@@ -1166,6 +1187,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=int(os.environ.get("MCP_PORT", "8000")))
     args = parser.parse_args()
     log.info("starting telegram-ads-mcp %s transport=%s", __version__, args.transport)
+    refresh_in_background()
     if args.transport == "stdio":
         mcp.run(transport="stdio")
     else:

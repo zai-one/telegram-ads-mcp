@@ -86,8 +86,11 @@ HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --po
 | Creatives | `upload_media` `preview_ad` |
 | Targeting | `search_targets` `get_targeting_reference` |
 | Прочее | `manage_audience` `manage_event` `manage_funds` `save_api_settings` `revoke_token` `log_out` |
+| Обновления | `check_update` |
 
 Объявления создавать в `on_hold`. С `budget="0"` на модерацию нельзя. Суммы — строки в Gram. Поисковые объявления без текста / картинки / media. `launch_ad` не включает объявление: добавляет бюджет и отправляет на ревью. `langs` вместе с конкретными `channels` не сочетать.
+
+**Обновления.** `check_update` сравнивает вашу версию с [последним релизом](https://github.com/zai-one/telegram-ads-mcp/releases) и возвращает ссылку на заметки к релизу и команду (`git pull --ff-only && uv sync` в клоне, иначе `pip install --upgrade "telegram-ads-mcp @ git+…@vX"`). Только подсказывает, сам ничего не ставит. Один анонимный запрос к GitHub API, таймаут 3 с, кэш на 24 ч; без сети — `status: unavailable`. Если в кэше есть более новый релиз, `check_session` добавляет `update_hint`, а в инструкции сервера попадает одна строка. Отключить: `TG_ADS_DISABLE_UPDATE_CHECK=1` в `.env`.
 
 ## Issues
 
