@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `check_update` (READ): suggest-only check of the latest GitHub release (one anonymous API call, 3 s timeout, 24 h cache, offline → `unavailable`) with release notes link and update command. `check_session` adds `update_hint` and the server instructions add one line when the cache already knows of a newer release; a stale cache refreshes on a background thread at startup. Opt out: `TG_ADS_DISABLE_UPDATE_CHECK=1`.
+- `uv.lock`: MCP Python SDK 2.1.1 → 2.3.0 (fixes, no API changes for this server; `pyproject.toml` range `mcp>=2.1.1,<3` unchanged).
 - Explain ZAI.ONE as a digital agency and link integration support in English and Russian.
 
 ## 0.3.0 — 2026-09-01

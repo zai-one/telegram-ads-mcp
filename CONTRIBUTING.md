@@ -2,7 +2,7 @@
 
 Thin MCP wrapper over the `ads.telegram.org` internal API. Keep it small.
 
-A future campaign-setup HTTP/job service is **out of this repository**. Contracts live in `telegram_ads_mcp/schemas/` (shipped next to `AGENTS.md`) so that service can stay a thin caller of these tools. Do not add an app tree, a 26th tool, or a bidding bot here.
+A future campaign-setup HTTP/job service is **out of this repository**. Contracts live in `telegram_ads_mcp/schemas/` (shipped next to `AGENTS.md`) so that service can stay a thin caller of these tools. Do not add an app tree, a bidding bot, or more than 28 tools here.
 
 This project is **not** MIT. Run it against your own cabinet. Do not copy, remix, or publish a competing server. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). I will patch **this** repository when I can. Support is not guaranteed.
 
