@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-10-12
+
+Operator-facing: suggest-only update check (26th tool), MCP SDK 2.3.0 lock.
 
 - `check_update` (READ): suggest-only check of the latest GitHub release (one anonymous API call, 3 s timeout, 24 h cache, offline → `unavailable`) with release notes link and update command. `check_session` adds `update_hint` and the server instructions add one line when the cache already knows of a newer release; a stale cache refreshes on a background thread at startup. Opt out: `TG_ADS_DISABLE_UPDATE_CHECK=1`.
 - Update check hardening: only plain version tags (`v1.2.3`, ASCII digits) are accepted, from GitHub and from the cache, so a crafted tag or cached value never reaches `latest_version`, `update_command`, `update_hint` or the server instructions. Every fetch attempt is cached: after a failure the check waits 30 min, and `force=true` re-checks at most once a minute (the startup refresh obeys the same rules). `update_command` is now only the executable command (`git pull --ff-only && uv sync` in a clone); where to run it moved to the new `run_in` field. The unused release-wheel lookup is gone. README and `.env.example` note that the server calls `api.github.com` at startup unless disabled.

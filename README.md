@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.3.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.3.0"></a>
+  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.4.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.4.0"></a>
   <a href="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml"><img src="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-555555" alt="MCP 2.x"></a>
@@ -37,21 +37,17 @@
 
 ## Why
 
-Telegram does not publish an advertiser API. This server wraps the logged-in ads.telegram.org session (`stel_token` / `stel_ssid` in a gitignored `.env`) and exposes ~25 MCP tools, plus `ads://playbook` and `ads://account`.
+Telegram does not publish an advertiser API. This server wraps the logged-in ads.telegram.org session (`stel_token` / `stel_ssid` in a gitignored `.env`) and exposes 26 MCP tools, plus `ads://playbook` and `ads://account`.
 
 Live cabinet is **TON**, billed in **Gram**. User-geo (`target_type=users`) works. Stars cabinets are refused (`code: stars_cabinet`). Unofficial — not Telegram.
 
 Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`. A blocked call returns `code: write_gated` with `tool` / `class` / `would_send` (intended args, no secrets) and `sent: false` — not a platform dry-run.
 
-## What's new in 0.3.0
+## What's new in 0.4.0
 
-- **Stats.** `get_ad_stats` echoes request `period` (`5min` = last 24h, `day` = lifetime). `summary.spend` and `charts.budget` are already scaled — do not divide. No CSV tool; optional dump is gitignored `reports/`.
-- **Session.** Dead cookies: follow [INSTALL.md](INSTALL.md) DevTools clicks into `.env` only, then `reload_session`. Never paste values into chat.
-- **Bugs.** Offer a GitHub Issue (playbook **Found a bug → Issue**). Local draft: `uv run python scripts/check_security.py --issue draft.md` (prints `gh issue create`, does not open).
-- **Audience / events.** Access denied → `code: access_denied`, `hint: skip`. Do not retry.
-- **Create.** `launch_ad` takes `topics`, `exclude_*`, `locations`. Do not send `langs` with specific channel IDs (platform Target invalid).
-- **Later RK service.** JSON Schema in the wheel (`telegram_ads_mcp/schemas/`) names campaign brief / review / stats dump. This repo is not that service.
-- **Local notes.** `AGENTS.local.md` is gitignored. Client playbook stays `AGENTS.md`. MCP JSON without secrets: [mcp.json.example](mcp.json.example).
+- **Updates.** New `check_update` (26th tool, read-only) compares your version with the latest GitHub release and returns the notes link, the executable `update_command` and `run_in` (where to run it). It only suggests and never installs. `check_session` adds `update_hint` when a newer release is cached. Opt out: `TG_ADS_DISABLE_UPDATE_CHECK=1`.
+- **Hardening.** Only plain version tags (`v1.2.3`) are accepted. One anonymous GitHub API call, 3 s timeout, 24 h cache, 30 min backoff after a failure, `force=true` at most once a minute; offline → `status: unavailable`.
+- **SDK.** `uv.lock` pins MCP Python SDK 2.3.0 (fixes, no API changes for this server).
 
 ## Quick start
 
