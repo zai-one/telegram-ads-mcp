@@ -13,6 +13,8 @@ jobs:
   pytest:
     name: ${{ matrix.os }} · py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    env:
+      TG_ADS_DISABLE_UPDATE_CHECK: "1"
     strategy:
       fail-fast: false
       matrix:
