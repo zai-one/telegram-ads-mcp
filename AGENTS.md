@@ -28,7 +28,7 @@ Two jobs — do not mix unless they asked both: **cabinet** (`review-account`) v
 
 ## Updates
 
-`check_session` may include `update_hint`. Then call `check_update` and tell the user the version and `update_command`. Do not run the command yourself unless they ask. `status: unavailable` is not an error; do not retry.
+`check_session` may include `update_hint`. Then call `check_update` and tell the user the version, `update_command` and `run_in` (where to run it). Do not run the command yourself unless they ask. `status: unavailable` is not an error; do not retry.
 
 ## Found a bug → Issue
 

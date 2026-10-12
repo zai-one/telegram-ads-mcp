@@ -210,8 +210,9 @@ async def check_session() -> dict[str, Any]:
 def check_update(force: bool = False) -> dict[str, Any]:
     """Check GitHub for a newer telegram-ads-mcp release; suggest only, never install.
 
-    Returns current/latest version, release notes link and the update command.
-    One anonymous GitHub API call (3 s timeout), cached 24h unless force=true.
+    Returns current/latest version, release notes link, the update command and run_in
+    (where to run it). One anonymous GitHub API call (3 s timeout), cached 24h; force=true
+    re-checks at most once a minute. After a failed call it waits 30 min.
     Offline -> status=unavailable. Disable with TG_ADS_DISABLE_UPDATE_CHECK=1.
     Tell the user the command; do not run it yourself unless they ask.
     """
