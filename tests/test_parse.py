@@ -212,3 +212,11 @@ def test_check_amounts_per_cabinet() -> None:
     assert "decimals" in (check_amounts(eur, cpm="0.255") or "")
     assert "not a number" in (check_amounts({"cabinet": "ton"}, budget="ten") or "")
     assert check_amounts({"cabinet": "ton"}, budget="-1") == "budget must be >= 0"
+    assert "finite" in (check_amounts({"cabinet": "eur"}, cpm="nan") or "")
+
+
+def test_update_hint_never_breaks_budget() -> None:
+    from telegram_ads_mcp.router import instructions
+
+    assert len(instructions("x" * 500)) <= 1200
+    assert instructions("short hint").endswith("short hint")

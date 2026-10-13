@@ -9,6 +9,9 @@ from __future__ import annotations
 from typing import NamedTuple
 
 
+LIMIT = 1200  # instructions budget, also enforced by scripts/token_budget.py
+
+
 class Route(NamedTuple):
     id: str
     intent: str
@@ -52,4 +55,7 @@ def router_lines() -> list[str]:
 
 def instructions(extra: str = "") -> str:
     tail = "Unsure? ads://playbook (full text) or ads://guide/index (topics)."
-    return "\n".join([HEADER, *router_lines(), FOOTER, tail]) + (f" {extra}" if extra else "")
+    text = "\n".join([HEADER, *router_lines(), FOOTER, tail])
+    if extra and len(text) + 1 + len(extra) <= LIMIT:
+        text += f" {extra}"
+    return text

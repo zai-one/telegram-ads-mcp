@@ -251,7 +251,7 @@ async def reload_session() -> dict[str, Any]:
 
 @mcp.tool(annotations=READ, **meta("list_accounts"))
 async def list_accounts() -> dict[str, Any]:
-    """List ad cabinets for this Telegram login. Works even on a Stars cabinet so you can switch away."""
+    """List ad cabinets for this Telegram login. Works on any cabinet (TON, EUR, Stars)."""
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return err

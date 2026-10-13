@@ -296,6 +296,8 @@ def check_amounts(cabinet: Mapping[str, Any] | None, **amounts: str | None) -> s
             value = float(text)
         except ValueError:
             return f"{name}={raw!r} is not a number"
+        if value != value or value in (float("inf"), float("-inf")):
+            return f"{name}={raw!r} is not a finite number"
         if value < 0:
             return f"{name} must be >= 0"
         if rules["integer_only"] and not value.is_integer():
