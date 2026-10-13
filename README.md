@@ -35,6 +35,8 @@
 
 ---
 
+> MCP server for the Telegram Ads platform (ads.telegram.org, TON cabinet): create, target, pause and read stats for ads; 26 tools, new ads start on hold.
+
 ## Why
 
 Telegram does not publish an advertiser API. This server wraps the logged-in ads.telegram.org session (`stel_token` / `stel_ssid` in a gitignored `.env`) and exposes 26 MCP tools, plus `ads://playbook` and `ads://account`.
@@ -54,7 +56,7 @@ Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `con
 
 - Actively maintained by ZAI.ONE: current version 0.4.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
 - Built-in update check: ask the assistant to run `check_update` (public GitHub API, no credentials, cached; nothing is installed automatically; `TG_ADS_DISABLE_UPDATE_CHECK=1` turns it off).
-- Follows current MCP practice: tool annotations (read-only / destructive hints), toolsets and read-only mode, server `instructions`, prompts and resources, structured errors with recovery hints, secrets kept out of tool output, a token budget for tool descriptions enforced in tests.
+- Follows current MCP practice: tool annotations (read-only / destructive hints), server `instructions`, prompts and resources, structured errors with recovery hints, secrets kept out of tool output, a token budget for tool descriptions enforced in tests.
 - CI runs the test suite on Linux and Windows for every pull request.
 
 ## What's new in 0.4.0
@@ -93,8 +95,6 @@ Cookies stay in a `.env` file on disk (never in MCP `env` values or chat). For u
 
 ```bash
 # Claude Code: MCP only
-
-> MCP server for the Telegram Ads platform (ads.telegram.org, TON cabinet): create, target, pause and read stats for ads; 26 tools, new ads start on hold.
 claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
 # Claude Code: plugin = MCP + skills (launch / review / diagnose)
 /plugin marketplace add zai-one/telegram-ads-mcp

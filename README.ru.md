@@ -35,6 +35,8 @@
 
 ---
 
+> MCP-сервер для Telegram Ads (ads.telegram.org, кабинет в TON): создание, таргетинг, пауза и статистика объявлений; 26 инструментов, новые объявления создаются на паузе.
+
 ## Зачем
 
 У Telegram нет публичного advertiser API. Сервер работает от сессии ads.telegram.org (`stel_token` / `stel_ssid` в gitignore `.env`) и отдаёт 26 MCP tools, плюс `ads://playbook` и `ads://account`.
@@ -54,7 +56,7 @@
 
 - Проект активно поддерживает ZAI.ONE: текущая версия 0.4.0; изменения в [CHANGELOG.md](CHANGELOG.md) и [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
 - Встроенная проверка обновлений: попросите ассистента вызвать `check_update` (публичный GitHub API, без учётных данных, с кэшем; ничего не устанавливается автоматически; отключение: `TG_ADS_DISABLE_UPDATE_CHECK=1`).
-- Следует актуальным практикам MCP: аннотации инструментов (read-only / destructive), наборы инструментов и режим только чтения, `instructions` сервера, промпты и ресурсы, структурированные ошибки с подсказками, секреты не попадают в ответы, бюджет токенов описаний проверяется в тестах.
+- Следует актуальным практикам MCP: аннотации инструментов (read-only / destructive), `instructions` сервера, промпты и ресурсы, структурированные ошибки с подсказками, секреты не попадают в ответы, бюджет токенов описаний проверяется в тестах.
 - CI прогоняет тесты на Linux и Windows для каждого pull request.
 
 ## Что нового в 0.4.0
@@ -93,8 +95,6 @@ Cookies живут только в файле `.env` на диске (не в `e
 
 ```bash
 # Claude Code: только MCP
-
-> MCP-сервер для Telegram Ads (ads.telegram.org, кабинет в TON): создание, таргетинг, пауза и статистика объявлений; 26 инструментов, новые объявления создаются на паузе.
 claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
 # Claude Code: плагин = MCP + skills (запуск / обзор / диагностика)
 /plugin marketplace add zai-one/telegram-ads-mcp
