@@ -1,0 +1,21 @@
+[
+  {"request": "хочу запустить рекламу своего канала", "route": "launch", "tool": "create_ad"},
+  {"request": "сделай новое объявление и отправь на модерацию", "route": "launch", "tool": "launch_ad"},
+  {"request": "launch a new ad for our bot", "route": "launch", "tool": "create_ad"},
+  {"request": "что с балансом и моими объявлениями?", "route": "review", "tool": "get_ads"},
+  {"request": "quick review of the account balance", "route": "review", "tool": "get_account"},
+  {"request": "почему объявление не крутится", "route": "diagnose", "tool": "get_ad_stats"},
+  {"request": "покажи статистику и показы по ad 42", "route": "diagnose", "tool": "get_ad_stats"},
+  {"request": "why does my ad get no stats", "route": "diagnose", "tool": "get_ad_stats"},
+  {"request": "подбери каналы для таргетинга про крипту", "route": "targeting", "tool": "search_targets"},
+  {"request": "targeting options: languages and topics", "route": "targeting", "tool": "get_targeting_reference"},
+  {"request": "подними бюджет и ставку cpm", "route": "edit", "tool": "edit_ad"},
+  {"request": "pause that ad for now", "route": "edit", "tool": "edit_ad"},
+  {"request": "в какой валюте кабинет, евро или звёзды?", "route": "cabinet", "tool": "get_account"},
+  {"request": "switch to my stars account", "route": "cabinet", "tool": "select_account"},
+  {"request": "переключись на кабинет в eur", "route": "cabinet", "tool": "list_accounts"},
+  {"request": "сессия слетела, обновил куки", "route": "auth", "tool": "reload_session"},
+  {"request": "check my login session", "route": "auth", "tool": "check_session"},
+  {"request": "удали старое объявление", "route": "danger", "tool": "delete_ad"},
+  {"request": "withdraw the remaining funds", "route": "danger", "tool": "manage_funds"}
+]

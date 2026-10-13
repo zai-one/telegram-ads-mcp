@@ -1,5 +1,14 @@
 # Changelog
 
+
+## Unreleased
+
+- EUR and Stars ad cabinets are supported (Stars were refused before). `get_account` returns `money`
+  (unit, decimals, integer_only); `create_ad` / `edit_ad` reject amounts that do not fit the cabinet
+  (`invalid_amount`) and user targeting on Stars (`unsupported_in_cabinet`). `TG_ADS_STARS=off` restores refusal.
+- Instructions are generated from `telegram_ads_mcp/router.py`: one line per intent -> tool; skill;
+  `ads://guide/<topic>`, with `ads://playbook` / `ads://guide/index` fallback.
+- Router eval (`tests/evals/routing_cases.json`, 19 RU/EN requests) fails on any unreachable tool, skill or guide.
 ## 0.5.0 — 2026-10-13
 
 Operator-facing: agent layer per the ZAI.ONE MCP standard (router instructions, skills, guides, plugins), compact `get_ads` / `get_ad_stats` by default, working-directory `.env` limited to `STEL_*` cookies, LicenseRef-ZAI-ONE 2.0.

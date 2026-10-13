@@ -274,3 +274,27 @@ async def test_get_ads_summary_compacts_items() -> None:
         full = await server_mod.get_ads(detail="full")
     assert lean["items"] == [{"ad_id": "1"}]
     assert full["items"][0]["media"] is None
+
+
+def _stars_client() -> AsyncMock:
+    fake = _ton_gram_client()
+    cabinet = {"cabinet": "stars", "currency": "XTR", "supports_user_targeting": False, "supported": True}
+    fake.detect_cabinet.return_value = cabinet
+    fake.require_supported_cabinet.return_value = cabinet
+    return fake
+
+
+@pytest.mark.asyncio
+async def test_stars_cabinet_whole_numbers_and_no_users() -> None:
+    fake = _stars_client()
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        bad = await server_mod.create_ad(title="s", promote_url="https://t.me/example_bot", cpm="1.5")
+        users = await server_mod.create_ad(
+            title="s", promote_url="https://t.me/example_bot", cpm="2", target_type="users"
+        )
+        good = await server_mod.create_ad(title="s", promote_url="https://t.me/example_bot", cpm="2")
+    assert bad["code"] == "invalid_amount"
+    assert users["code"] == "unsupported_in_cabinet"
+    assert good["ok"] is True
+    method, params = fake.call.await_args.args[:2]
+    assert method == "createAd" and params["cpm"] == "2"

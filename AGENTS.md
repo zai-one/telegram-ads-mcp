@@ -4,7 +4,15 @@ MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook` (this file
 
 ## Currency
 
-ads.telegram.org cabinet is **TON**; billed in **Gram**. `get_account`: `cabinet: "ton"`, `currency: "GRAM"`. Say **Gram** or **TON** or **Gram (TON)** — all fine. EUR is another cabinet. Stars: `code: "stars_cabinet"` — switch, do not mutate.
+Three cabinet types; `get_account` returns `cabinet`, `currency` and `money` (unit, decimals, integer_only):
+- **TON** (`cabinet: "ton"`, `currency: "GRAM"`): billed in Gram (say Gram, TON or Gram (TON)); 2 decimals.
+- **EUR** (`cabinet: "eur"`): ad-platform cabinet in euro; 2 decimals; user targeting available.
+- **Stars** (`cabinet: "stars"`, `currency: "XTR"`): bot/channel owners pay in Telegram Stars; whole
+  numbers only for `cpm`, `budget`, `daily_budget`, `budget_amount`; no `target_type=users`
+  (`code: "unsupported_in_cabinet"`). Disabled only when the operator sets `TG_ADS_STARS=off`
+  (`code: "stars_cabinet"` -> `list_accounts` / `select_account`).
+A wrong amount returns `code: "invalid_amount"` before any API call. Never convert between currencies;
+quote amounts in the cabinet's own unit.
 
 ## Auth
 
@@ -81,7 +89,7 @@ No CSV / export tool (`get_ad_stats_csv` does not exist). A dump is tool JSON: `
 
 Prefer `launch_ad`. It does **not** activate. It **does** add budget (default `"1"` Gram) and `send_target_to_review`. Name cpm + budget + `target_type` first. If `steps.validate` fails, stop. Optional targeting on `launch_ad`: `topics`, `exclude_topics` / `exclude_channels`, `locations`, user excludes. Do **not** send `langs` together with specific `channels` (platform Target invalid) — the tool drops `langs` in that case. Full field set remains on `create_ad`.
 
-Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
+Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
 
 ## Danger
 

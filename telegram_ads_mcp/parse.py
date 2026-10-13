@@ -10,6 +10,7 @@ import html as html_lib
 import json
 import logging
 import re
+from collections.abc import Mapping
 from typing import Any
 
 log = logging.getLogger("telegram_ads_mcp.parse")
@@ -269,8 +270,39 @@ def detect_cabinet(account_html: str, new_ad_html: str = "") -> dict[str, Any]:
         "cabinet": kind,
         "currency": cur,
         "supports_user_targeting": kind != "stars",
-        "supported": kind != "stars",
+        "supported": True,
+        "money": dict(CABINET_MONEY[kind]),
     }
+
+
+# How amounts look in each cabinet type. Telegram bills TON cabinets in Gram (TON), the ad
+# platform in EUR, and bot/channel owners in Telegram Stars (XTR, whole stars only).
+CABINET_MONEY: dict[str, dict[str, Any]] = {
+    "ton": {"unit": "Gram (TON)", "decimals": 2, "integer_only": False, "user_targeting": True},
+    "eur": {"unit": "EUR", "decimals": 2, "integer_only": False, "user_targeting": True},
+    "stars": {"unit": "Telegram Stars (XTR)", "decimals": 0, "integer_only": True, "user_targeting": False},
+}
+
+
+def check_amounts(cabinet: Mapping[str, Any] | None, **amounts: str | None) -> str | None:
+    """Return an error string when an amount does not fit the cabinet currency, else None."""
+    kind = (cabinet or {}).get("cabinet", "ton")
+    rules = CABINET_MONEY.get(kind, CABINET_MONEY["ton"])
+    for name, raw in amounts.items():
+        if raw in (None, ""):
+            continue
+        text = str(raw).strip().replace(",", ".")
+        try:
+            value = float(text)
+        except ValueError:
+            return f"{name}={raw!r} is not a number"
+        if value < 0:
+            return f"{name} must be >= 0"
+        if rules["integer_only"] and not value.is_integer():
+            return f"{name}={raw!r}: {rules['unit']} cabinet takes whole numbers only"
+        if "." in text and len(text.split(".", 1)[1]) > rules["decimals"]:
+            return f"{name}={raw!r}: at most {rules['decimals']} decimals in {rules['unit']}"
+    return None
 
 
 def parse_chart(html: str, wrap_id: str) -> dict[str, Any] | None:

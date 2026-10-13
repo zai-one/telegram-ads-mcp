@@ -15,10 +15,12 @@ from mcp.server import MCPServer
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 
 from telegram_ads_mcp import __version__, guide
-from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError
+from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError, stars_enabled
 from telegram_ads_mcp.descriptions import meta
 from telegram_ads_mcp.gate import attach_gate, gated
+from telegram_ads_mcp.router import instructions as router_instructions
 from telegram_ads_mcp.parse import (
+    check_amounts,
     compact,
     access_denied_payload,
     channel_langs_conflict,
@@ -62,21 +64,7 @@ mcp = MCPServer(
     name="telegram-ads-mcp",
     title="Telegram Ads",
     version=__version__,
-    instructions=(
-        "telegram-ads MCP: ads.telegram.org TON cabinet, billed in Gram (say Gram or TON). "
-        "Start: check_session, then get_account (cabinet, currency, write_gate). "
-        "Never guess IDs: use search_targets / get_targeting_reference. "
-        "Money: ads are created on_hold; launch_ad spends budget and sends review, never activates. "
-        "Writes: TG_ADS_WRITE_GATE (default confirm) - spend/destructive need confirm=true after the "
-        "user says yes; confirm_hash tools are two-step (never invent hashes). "
-        "Auth: cookies live only in .env, never in chat; after the user edits .env call reload_session. "
-        "Stars cabinet: list_accounts then select_account. "
-        "Playbooks: skills telegram-ads-launch-campaign, telegram-ads-review-account, "
-        "telegram-ads-diagnose-ad (same as prompts launch-campaign, review-account, diagnose-ad); "
-        "details in ads://guide/index, full text ads://playbook. "
-        "Errors: retry only if retryable; follow hint. Cabinet work vs this git repo: do not mix."
-        + (f" {_STARTUP_UPDATE_HINT}" if _STARTUP_UPDATE_HINT else "")
-    ),
+    instructions=router_instructions(_STARTUP_UPDATE_HINT or ""),
     website_url="https://github.com/zai-one/telegram-ads-mcp",
 )
 
@@ -87,6 +75,22 @@ def _ok(data: dict[str, Any] | None = None, **extra: Any) -> dict[str, Any]:
         out.update(data)
     out.update(extra)
     return out
+
+
+async def _money_error(client: Any, target_type: str | None = None, **amounts: str | None) -> dict | None:
+    """Cabinet-aware amount check: Stars take whole numbers and no user targeting; EUR/Gram 2 decimals."""
+    cabinet = await client.require_supported_cabinet()
+    if not isinstance(cabinet, dict):
+        return None
+    if cabinet.get("cabinet") == "stars" and target_type == "users":
+        return attach_gate({"ok": False, "code": "unsupported_in_cabinet", "cabinet": "stars",
+                            "error": "Stars cabinets cannot target users; use channels or bots.",
+                            "retryable": False})
+    problem = check_amounts(cabinet, **amounts)
+    if problem:
+        return attach_gate({"ok": False, "code": "invalid_amount", "cabinet": cabinet.get("cabinet"),
+                            "currency": cabinet.get("currency"), "error": problem, "retryable": False})
+    return None
 
 
 async def _client_or_fail(require_supported: bool = True):
@@ -158,7 +162,7 @@ def launch_campaign_prompt(
     return (
         f"Launch a {target_type} ad promoting {promote_url}.\n"
         "1. check_session — if ok=false, offer INSTALL.md DevTools steps; they write .env (never paste into chat); then reload_session.\n"
-        "2. get_account — TON cabinet, GRAM balance. Abort on Stars. Note write_gate.\n"
+        "2. get_account — cabinet (TON/EUR/Stars), currency and money rules. Note write_gate.\n"
         "3. search_targets to resolve IDs.\n"
         "4. check_ad_post on the promote_url + text.\n"
         "5. launch_ad (on_hold + budget + review, does not activate). Pass confirm=true if write_gated.\n"
@@ -171,7 +175,7 @@ def launch_campaign_prompt(
 def review_account_prompt() -> str:
     return (
         "Read-only review of the Telegram Ads cabinet. Do not create, edit, or spend.\n"
-        "1. get_account — TON cabinet, currency=GRAM. Abort if Stars. Note write_gate.\n"
+        "1. get_account — cabinet and currency (GRAM/EUR/XTR). Note write_gate.\n"
         "2. get_ads(status=active) and get_ads(status=on_hold). Use list spent/views/ctr; do not fetch stats for every ad.\n"
         "3. Pick at most 5 problem ads (Active with 0 views, or Stopped with leftover daily_budget, or CTR crash).\n"
         "4. For each: get_ad_stats(period=5min) then period=day if needed. Compare summary.spend to list spent (same order of magnitude). Spend is already scaled — do not divide.\n"
@@ -201,7 +205,7 @@ async def check_session() -> dict[str, Any]:
     """Ping the current ads.telegram.org session.
 
     Returns owner_id, cabinet (ton/eur/stars), currency, balance.
-    Does not return api_hash or cookies. Stars cabinets are reported but not used.
+    Does not return api_hash or cookies. TON, EUR and Stars cabinets are supported.
     If ok=false with code=auth, offer INSTALL.md DevTools steps; they write .env (never paste into chat); then reload_session.
     """
     client, err = await _client_or_fail(require_supported=False)
@@ -272,13 +276,13 @@ async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]
     try:
         client = await switch_account(owner_id)
         info = attach_gate(await client.get_account())
-        if info.get("cabinet") == "stars":
+        if info.get("cabinet") == "stars" and not stars_enabled():
             return attach_gate({
                 "ok": False,
                 "code": "stars_cabinet",
                 "cabinet": "stars",
                 "owner_id": owner_id,
-                "error": "Stars cabinet selected. This server refuses to run ads on Stars. Pick a Gram (TON) or EUR cabinet.",
+                "error": "Stars cabinet selected but TG_ADS_STARS=off. Set TG_ADS_STARS=on or pick a Gram/EUR cabinet.",
                 "accounts_hint": "Call list_accounts and select_account with a Gram/TON or EUR owner_id.",
             })
         return info
@@ -288,7 +292,7 @@ async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]
 
 @mcp.tool(annotations=READ, **meta("get_account"))
 async def get_account() -> dict[str, Any]:
-    """Current cabinet card: owner_id, cabinet (ton/eur/stars), currency (GRAM/EUR), balance, write_gate."""
+    """Current cabinet card: owner_id, cabinet (ton/eur/stars), currency (GRAM/EUR/XTR), money, balance, write_gate."""
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return err
@@ -431,6 +435,10 @@ async def create_ad(
     client, err = await _client_or_fail()
     if err:
         return err
+    money_err = await _money_error(client, target_type=target_type, cpm=cpm, budget=budget,
+                                   daily_budget=daily_budget)
+    if money_err:
+        return money_err
     params: dict[str, Any] = {
         "owner_id": client.owner_id,
         "title": title,
@@ -542,6 +550,9 @@ async def edit_ad(
     client, err = await _client_or_fail()
     if err:
         return err
+    money_err = await _money_error(client, cpm=cpm, daily_budget=daily_budget, budget_amount=budget_amount)
+    if money_err:
+        return money_err
     results: dict[str, Any] = {}
     if budget_action and budget_amount:
         method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"

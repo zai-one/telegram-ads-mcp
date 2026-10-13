@@ -54,7 +54,9 @@ def test_map_status() -> None:
 def test_detect_stars_and_eur_and_ton() -> None:
     stars = detect_cabinet('"currency":"XTR"', "")
     assert stars["cabinet"] == "stars"
-    assert stars["supported"] is False
+    assert stars["supported"] is True
+    assert stars["money"]["integer_only"] is True
+    assert stars["supports_user_targeting"] is False
     gram_account = (FIXTURES / "gram_account.html").read_text(encoding="utf-8")
     gram_new = (FIXTURES / "gram_new_ad.html").read_text(encoding="utf-8")
     gram = detect_cabinet(gram_account, gram_new)
@@ -196,3 +198,17 @@ def test_redact_secrets() -> None:
     assert "alsohash" not in out
     assert "abcdef123456" not in out
     assert "***" in out
+
+
+def test_check_amounts_per_cabinet() -> None:
+    from telegram_ads_mcp.parse import check_amounts
+
+    stars = {"cabinet": "stars"}
+    assert check_amounts(stars, cpm="15", budget="300") is None
+    assert "whole numbers" in (check_amounts(stars, cpm="1.5") or "")
+    eur = detect_cabinet((FIXTURES / "eur_account.html").read_text(encoding="utf-8"), "")
+    assert eur["money"]["unit"] == "EUR"
+    assert check_amounts(eur, cpm="0.25", budget="20") is None
+    assert "decimals" in (check_amounts(eur, cpm="0.255") or "")
+    assert "not a number" in (check_amounts({"cabinet": "ton"}, budget="ten") or "")
+    assert check_amounts({"cabinet": "ton"}, budget="-1") == "budget must be >= 0"

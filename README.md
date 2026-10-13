@@ -41,7 +41,7 @@
 
 Telegram does not publish an advertiser API. This server wraps the logged-in ads.telegram.org session (`stel_token` / `stel_ssid` in a gitignored `.env`) and exposes 26 MCP tools, plus `ads://playbook` and `ads://account`.
 
-Live cabinet is **TON**, billed in **Gram**. User-geo (`target_type=users`) works. Stars cabinets are refused (`code: stars_cabinet`). Unofficial — not Telegram.
+Cabinets: **TON** (billed in **Gram**), **EUR** and **Stars** (whole-number amounts, no user targeting; `TG_ADS_STARS=off` disables). `get_account` returns `money` rules; bad amounts are rejected before any call. Unofficial — not Telegram.
 
 Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`. A blocked call returns `code: write_gated` with `tool` / `class` / `would_send` (intended args, no secrets) and `sent: false` — not a platform dry-run.
 
@@ -148,7 +148,7 @@ Local draft: `uv run python scripts/check_security.py --issue draft.md` — prin
 
 Support is **not guaranteed**. Issues are read when I can.
 
-Need **EUR** or **Stars** cabinets (not live here)? Write on Telegram: [t.me/zai_one](https://t.me/zai_one). We can talk about access. Do not send cookies in the GitHub issue.
+EUR and Stars support is fixture-tested; found a mismatch on a live EUR/Stars cabinet? Write on Telegram: [t.me/zai_one](https://t.me/zai_one). Do not send cookies in the GitHub issue.
 
 ## Built by ZAI.ONE
 
