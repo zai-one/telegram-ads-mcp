@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- License: LicenseRef-ZAI-ONE 2.0 (source-available). Free install and use for yourself and your organisation, including commercial work; issues and pull requests welcome; copying code into other projects, redistribution, embedding and competing hosted services need written permission. Releases published under MIT before 2026-10-13 stay MIT for those versions (see NOTICE). README first screen: one-line scope, why this MCP, maintenance and update check.
+
 Agent layer per the ZAI.ONE MCP standard. No version bump.
 
 - Router `instructions` (<=1200 chars) and template tool descriptions + titles (`telegram_ads_mcp/descriptions.py`, each <=300 chars).

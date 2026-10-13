@@ -4,7 +4,7 @@ Thin MCP wrapper over the `ads.telegram.org` internal API. Keep it small.
 
 A future campaign-setup HTTP/job service is **out of this repository**. Contracts live in `telegram_ads_mcp/schemas/` (shipped next to `AGENTS.md`) so that service can stay a thin caller of these tools. Do not add an app tree, a bidding bot, or more than 28 tools here.
 
-This project is **not** MIT. Run it against your own cabinet. Do not copy, remix, or publish a competing server. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). I will patch **this** repository when I can. Support is not guaranteed.
+This project is **not** MIT: it uses LicenseRef-ZAI-ONE 2.0 (source-available). Install and use it freely against your own cabinet. Issues and pull requests are welcome; by submitting a pull request you license your contribution to ZAI.ONE as described in [LICENSE](LICENSE). Copying code into other projects, redistribution, embedding in other products or a competing server require written permission. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). Support is not guaranteed.
 
 Do not add PR templates, a Contributors table, or “PRs welcome”. README must keep the Issues CTA (“I'm working on this”) and must **not** contain “don't fork” / “не форкайте” (tests fail).
 
@@ -59,3 +59,7 @@ Local: `uv run pytest -q` and `uv run python scripts/check_security.py`.
 ## Version
 
 `pyproject` version, `telegram_ads_mcp.__version__`, and `server.json` version stay equal. User-visible changes go under CHANGELOG Unreleased. Bump those three files together only when cutting a tagged release (move Unreleased into a version heading); ordinary commits keep the current version. Do not tag / PyPI until [OFFLINE.md](OFFLINE.md) live checks (operator machine, no cookies in chat).
+
+## License
+
+Contributions are accepted under [LICENSE](LICENSE) (LicenseRef-ZAI-ONE 2.0): by submitting a pull request you license your contribution to ZAI.ONE as described there. End users may install and use the server freely; copying code into other projects, redistribution and embedding in other products require written permission from ZAI.ONE.
