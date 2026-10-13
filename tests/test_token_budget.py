@@ -117,3 +117,10 @@ def test_env_file_override(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("TG_ADS_ENV_FILE", str(env))
     session.load_env()
     assert session.env_ready()
+
+
+def test_skills_self_contained() -> None:
+    for skill in (ROOT / "skills").iterdir():
+        body = (skill / "SKILL.md").read_text(encoding="utf-8")
+        assert "](../" not in body, skill.name
+        assert (skill / "templates").is_dir() and (skill / "references").is_dir(), skill.name

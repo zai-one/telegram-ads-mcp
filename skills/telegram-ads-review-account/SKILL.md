@@ -23,3 +23,5 @@ Do not create, edit, or spend in this skill.
 ## Output
 Short table: ad_id, status, spent, views, CTR, problem. Field meanings: [fields](references/fields.md).
 Saving a dump: gitignored `reports/` only, allowlisted fields.
+
+Fill [the report template](templates/review-report.md).

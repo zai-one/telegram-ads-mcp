@@ -28,3 +28,5 @@ Goal: one ad created **on_hold**, budget added, sent to review, preview shown. N
 - `code=write_gated`: show `would_send`, ask, re-call with `confirm=true`.
 
 Full text: MCP resource `ads://playbook`; one topic: `ads://guide/{topic}`.
+
+Brief format: [templates/campaign-brief.md](templates/campaign-brief.md).

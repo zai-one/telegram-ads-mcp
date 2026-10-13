@@ -20,3 +20,5 @@ Input: `ad_id` (ask if missing; or find it with `get_ads`).
 5. Propose one fix. Writes (pause, CPM, budget) only after a yes; budget increase resumes delivery and is spend-class. See [danger](references/danger.md).
 
 Error codes and what to do: [errors](references/errors.md).
+
+Report format: [templates/diagnosis.md](templates/diagnosis.md).
