@@ -43,6 +43,20 @@
 
 Писать в кабинет: `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (по умолчанию `confirm`). Spend/destructive без `confirm=true` не пройдут, пока не `open`. Блок: `code: write_gated` с `tool` / `class` / `would_send` (что собирались отправить, без секретов) и `sent: false` — это не dry-run платформы.
 
+## Почему этот MCP
+
+- Безопасность бюджета: объявления создаются `on_hold`; траты проходят через шлюз записи, который показывает `get_account`.
+- Справочники таргетинга и `search_targets`, чтобы агент не угадывал ID; 3 промпта, 3 ресурса, включая `ads://playbook`.
+- Cookie сессии хранятся в `.env`, не в чате.
+- Другие Telegram Ads MCP на GitHub: [Free-cat/telegram_ads_mcp](https://github.com/Free-cat/telegram_ads_mcp) (14 инструментов), [reputasyon/telegram-ads-mcp](https://github.com/reputasyon/telegram-ads-mcp) (8).
+
+## Поддержка и обновления
+
+- Проект активно поддерживает ZAI.ONE: текущая версия 0.4.0; изменения в [CHANGELOG.md](CHANGELOG.md) и [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
+- Встроенная проверка обновлений: попросите ассистента вызвать `check_update` (публичный GitHub API, без учётных данных, с кэшем; ничего не устанавливается автоматически; отключение: `TG_ADS_DISABLE_UPDATE_CHECK=1`).
+- Следует актуальным практикам MCP: аннотации инструментов (read-only / destructive), наборы инструментов и режим только чтения, `instructions` сервера, промпты и ресурсы, структурированные ошибки с подсказками, секреты не попадают в ответы, бюджет токенов описаний проверяется в тестах.
+- CI прогоняет тесты на Linux и Windows для каждого pull request.
+
 ## Что нового в 0.4.0
 
 - **Обновления.** Новый `check_update` (26-й tool, только чтение) сравнивает вашу версию с последним релизом на GitHub и возвращает ссылку на заметки, исполняемую команду `update_command` и `run_in` (где её запускать). Только подсказывает, сам ничего не ставит. Если в кэше есть более новый релиз, `check_session` добавляет `update_hint`. Отключить: `TG_ADS_DISABLE_UPDATE_CHECK=1`.
@@ -79,6 +93,8 @@ Cookies живут только в файле `.env` на диске (не в `e
 
 ```bash
 # Claude Code: только MCP
+
+> MCP-сервер для Telegram Ads (ads.telegram.org, кабинет в TON): создание, таргетинг, пауза и статистика объявлений; 26 инструментов, новые объявления создаются на паузе.
 claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
 # Claude Code: плагин = MCP + skills (запуск / обзор / диагностика)
 /plugin marketplace add zai-one/telegram-ads-mcp
@@ -138,3 +154,10 @@ Skills: `telegram-ads-launch-campaign`, `telegram-ads-review-account`, `telegram
 [ZAI.ONE](https://zai.one) — интернет-агентство: сайты, SEO, реклама и аналитика. Мы также создаём инструменты, которые подключают AI-ассистентов к рабочим задачам. [Напишите в Telegram](https://t.me/zai_one), чтобы обсудить настройку, автоматизацию или внедрение для вашей команды.
 
 LicenseRef-ZAI-ONE · [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · [откройте issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose)
+
+## Лицензия, использование и участие
+
+- **Использование:** устанавливайте и используйте этот MCP-сервер свободно для себя и своей организации, в том числе в коммерческой работе. Если он полезен, поставьте, пожалуйста, ⭐ репозиторию — это просьба, а не условие.
+- **Участие:** [issues](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose) и pull request приветствуются; см. [CONTRIBUTING.md](CONTRIBUTING.md). Не публикуйте токены, cookie, сессии и данные аккаунтов.
+- **Без письменного разрешения ZAI.ONE запрещено:** копировать код в другие проекты, форкать для распространения, встраивать сервер в другие продукты или предлагать его как конкурирующий сервис.
+- Лицензия: [LicenseRef-ZAI-ONE 2.0](LICENSE) (исходный код открыт для просмотра, но это не open source). Сторонние компоненты и история лицензии: [NOTICE](NOTICE).

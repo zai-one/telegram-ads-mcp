@@ -43,6 +43,20 @@ Live cabinet is **TON**, billed in **Gram**. User-geo (`target_type=users`) work
 
 Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`. A blocked call returns `code: write_gated` with `tool` / `class` / `would_send` (intended args, no secrets) and `sent: false` — not a platform dry-run.
 
+## Why this MCP
+
+- Money safety: ads are created `on_hold`; spending actions go through a write gate shown by `get_account`.
+- Targeting references and `search_targets` so the agent never guesses IDs; 3 prompts, 3 resources incl. `ads://playbook`.
+- Session cookies stay in `.env`, never in chat.
+- Other Telegram Ads MCP servers on GitHub: [Free-cat/telegram_ads_mcp](https://github.com/Free-cat/telegram_ads_mcp) (14 tools), [reputasyon/telegram-ads-mcp](https://github.com/reputasyon/telegram-ads-mcp) (8 tools).
+
+## Maintained and up to date
+
+- Actively maintained by ZAI.ONE: current version 0.4.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
+- Built-in update check: ask the assistant to run `check_update` (public GitHub API, no credentials, cached; nothing is installed automatically; `TG_ADS_DISABLE_UPDATE_CHECK=1` turns it off).
+- Follows current MCP practice: tool annotations (read-only / destructive hints), toolsets and read-only mode, server `instructions`, prompts and resources, structured errors with recovery hints, secrets kept out of tool output, a token budget for tool descriptions enforced in tests.
+- CI runs the test suite on Linux and Windows for every pull request.
+
 ## What's new in 0.4.0
 
 - **Updates.** New `check_update` (26th tool, read-only) compares your version with the latest GitHub release and returns the notes link, the executable `update_command` and `run_in` (where to run it). It only suggests and never installs. `check_session` adds `update_hint` when a newer release is cached. Opt out: `TG_ADS_DISABLE_UPDATE_CHECK=1`.
@@ -79,6 +93,8 @@ Cookies stay in a `.env` file on disk (never in MCP `env` values or chat). For u
 
 ```bash
 # Claude Code: MCP only
+
+> MCP server for the Telegram Ads platform (ads.telegram.org, TON cabinet): create, target, pause and read stats for ads; 26 tools, new ads start on hold.
 claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
 # Claude Code: plugin = MCP + skills (launch / review / diagnose)
 /plugin marketplace add zai-one/telegram-ads-mcp
@@ -138,3 +154,10 @@ Need **EUR** or **Stars** cabinets (not live here)? Write on Telegram: [t.me/zai
 [ZAI.ONE](https://zai.one) is a digital agency working on websites, SEO, advertising and analytics. We also build tools that connect AI assistants to everyday work. [Talk to us on Telegram](https://t.me/zai_one) about setup, automation or an integration for your team.
 
 LicenseRef-ZAI-ONE · [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose)
+
+## License, use and contributing
+
+- **Use:** you may install and use this MCP server freely for yourself and your organisation, including commercial work. If it helps, please consider giving the repository a ⭐ — appreciated, never required.
+- **Contribute:** [issues](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose) and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Never post tokens, cookies, sessions or account data.
+- **Not allowed without written permission from ZAI.ONE:** copying code into other projects, forking for redistribution, embedding the server in other products or offering it as a competing service.
+- License: [LicenseRef-ZAI-ONE 2.0](LICENSE) (source-available, not open source). Third-party notices and license history: [NOTICE](NOTICE).
