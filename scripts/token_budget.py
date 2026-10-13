@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
+ALLOWED_KEYS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
 LINK_RE = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 
 LIMITS = {
@@ -64,7 +65,22 @@ def parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     head, body = text[4:end], text[end + 4 :].lstrip("\n")
     data: dict[str, object] = {}
     parent: str | None = None
+    block: str | None = None  # key of a folded (>) or literal (|) scalar being read
+    block_lines: list[str] = []
+    style = ">"
+
+    def close_block() -> None:
+        if block is not None:
+            joiner = " " if style == ">" else "\n"
+            data[block] = joiner.join(block_lines).strip()
+
     for raw in head.split("\n"):
+        if block is not None:
+            if raw.startswith((" ", "\t")) or not raw.strip():
+                block_lines.append(raw.strip())
+                continue
+            close_block()
+            block, block_lines = None, []
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         indented = raw.startswith((" ", "\t"))
@@ -80,11 +96,15 @@ def parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
             nested[key.strip()] = value
             continue
         parent = None
+        if value in (">", ">-", "|", "|-"):
+            block, block_lines, style = key.strip(), [], value[0]
+            continue
         if value == "":
             parent = key.strip()
             data[parent] = {}
         else:
             data[key.strip()] = value
+    close_block()
     return data, body
 
 
@@ -100,6 +120,9 @@ def check_skill(path: Path, report: Report) -> None:
     except ValueError as exc:
         report.err(f"{rel}: {exc}")
         return
+    unknown = sorted(set(meta) - ALLOWED_KEYS)
+    if unknown:
+        report.err(f"{rel}: unknown frontmatter keys {unknown}; put extras under metadata")
     name = str(meta.get("name", ""))
     folder = path.parent.name
     if not NAME_RE.match(name) or "--" in name:
