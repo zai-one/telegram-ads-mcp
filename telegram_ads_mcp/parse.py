@@ -369,6 +369,35 @@ def parse_chart(html: str, wrap_id: str) -> dict[str, Any] | None:
         return None
 
 
+def charts_to_csv(charts: Mapping[str, Any]) -> str:
+    """Flatten parsed charts into one CSV: time (UTC ISO), then <chart>.<series> columns."""
+    import csv
+    import io
+    from datetime import UTC, datetime
+
+    rows: dict[Any, dict[str, Any]] = {}
+    columns: list[str] = []
+    for chart_name, chart in charts.items():
+        if not isinstance(chart, Mapping):
+            continue
+        stamps = chart.get("timestamps") or []
+        for series_name, values in (chart.get("series") or {}).items():
+            col = f"{chart_name}.{series_name}"
+            columns.append(col)
+            for ts, value in zip(stamps, values, strict=False):
+                rows.setdefault(ts, {})[col] = value
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["time", *columns])
+    for ts in sorted(rows, key=lambda t: (t is None, t)):
+        try:
+            when = datetime.fromtimestamp(int(ts) / 1000, UTC).isoformat()
+        except (TypeError, ValueError, OverflowError, OSError):
+            when = str(ts)
+        writer.writerow([when, *(rows[ts].get(c, "") for c in columns)])
+    return out.getvalue()
+
+
 def derived_metrics(views: float, clicks: float, spend: float) -> dict[str, float | None]:
     def ratio(num: float, den: float) -> float | None:
         if not den:

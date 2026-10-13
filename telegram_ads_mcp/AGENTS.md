@@ -85,11 +85,13 @@ No CSV / export tool (`get_ad_stats_csv` does not exist). A dump is tool JSON: `
 - Save vs chat: chat JSON is enough. If you write a file, gitignored `reports/` (same rule as `previews/`; optional `reports/<ad_id>-<period>.json`). Allowlist: `ad_id`, request `period`, `summary` (spend, spend_already_scaled, spend_scale, views, clicks, ctr, cpc, cpm_actual), list `spent`/`cpm`/`budget`/`active`. No cookies, `.env`, hashes, DevTools, full `charts`. Schema: `telegram_ads_mcp/schemas/stats-dump.schema.json`.
 - Read-only pass: prompt `review-account` — ≤5 problem ads, one recommendation, stop. `diagnose-ad` = one ad (`get_ad` + `get_ad_stats(period=5min)` + `preview_ad`; `period=day` for lifetime). If the dump contradicts this playbook (scale, period, getAd 400), **offer** an Issue (Found a bug → Issue).
 
+`get_ad_stats(detail="csv")` returns a `csv` string (time + every chart series) for export.
+
 ## Create (always on_hold)
 
 Prefer `launch_ad`. It does **not** activate. It **does** add budget (default `"1"` Gram) and `send_target_to_review`. Name cpm + budget + `target_type` first. If `steps.validate` fails, stop. Optional targeting on `launch_ad`: `topics`, `exclude_topics` / `exclude_channels`, `locations`, user excludes. Do **not** send `langs` together with specific `channels` (platform Target invalid) — the tool drops `langs` in that case. Full field set remains on `create_ad`.
 
-Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
+Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`), or `budget_target` for an absolute total (server sends the difference). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
 
 ## Danger
 

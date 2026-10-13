@@ -220,3 +220,16 @@ def test_update_hint_never_breaks_budget() -> None:
 
     assert len(instructions("x" * 500)) <= 1200
     assert instructions("short hint").endswith("short hint")
+
+
+def test_charts_to_csv_merges_series() -> None:
+    from telegram_ads_mcp.parse import charts_to_csv
+
+    charts = {
+        "views": {"timestamps": [0, 86_400_000], "series": {"Views": [10, 20]}},
+        "budget": {"timestamps": [0], "series": {"Spent": [1.5]}},
+    }
+    lines = charts_to_csv(charts).splitlines()
+    assert lines[0] == "time,views.Views,budget.Spent"
+    assert lines[1] == "1970-01-01T00:00:00+00:00,10,1.5"
+    assert lines[2].endswith(",20,")

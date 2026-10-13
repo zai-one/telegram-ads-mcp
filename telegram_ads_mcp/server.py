@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from mcp.server import MCPServer
@@ -20,6 +21,7 @@ from telegram_ads_mcp.descriptions import meta
 from telegram_ads_mcp.gate import attach_gate, gated
 from telegram_ads_mcp.router import instructions as router_instructions
 from telegram_ads_mcp.parse import (
+    charts_to_csv,
     check_amounts,
     compact,
     access_denied_payload,
@@ -91,6 +93,22 @@ async def _money_error(client: Any, target_type: str | None = None, **amounts: s
         return attach_gate({"ok": False, "code": "invalid_amount", "cabinet": cabinet.get("cabinet"),
                             "currency": cabinet.get("currency"), "error": problem, "retryable": False})
     return None
+
+
+async def _budget_delta(client: Any, ad_id: str, target: str) -> tuple[str | None, str | None]:
+    """(action, amount) that moves the ad's total budget to `target`; (None, reason) when unknown."""
+    card = await client.get_ad(ad_id)
+    ad = card.get("ad") if isinstance(card, dict) and isinstance(card.get("ad"), dict) else {}
+    raw = ad.get("budget")
+    try:
+        current = Decimal(str(raw).replace(",", ".").strip())
+        wanted = Decimal(str(target).replace(",", ".").strip())
+    except (InvalidOperation, ValueError):
+        return None, f"Current budget of ad {ad_id} is not readable ({raw!r}); use budget_action."
+    delta = wanted - current
+    if delta == 0:
+        return None, f"Budget already equals {target}."
+    return ("increase" if delta > 0 else "decrease"), format(abs(delta).normalize(), "f")
 
 
 async def _client_or_fail(require_supported: bool = True):
@@ -514,6 +532,7 @@ async def edit_ad(
     audience_id: str | None = None,
     budget_action: Literal["increase", "decrease"] | None = None,
     budget_amount: str | None = None,
+    budget_target: str | None = None,
     activate_date: str | None = None,
     deactivate_date: str | None = None,
     schedule: str | None = None,
@@ -526,11 +545,13 @@ async def edit_ad(
     picture=True shows the avatar, picture=False turns it off (sends picture=0).
     clear_media=True removes attached photo/video.
     budget_action + budget_amount changes total budget (increase resumes a depleted Stopped ad).
+    budget_target sets the total budget to an absolute value (the server reads the current budget and
+    sends the increase/decrease difference); do not combine with budget_action.
     Targeting cannot be changed after creation — clone_ad instead.
     confirm: required to activate or change budget unless TG_ADS_WRITE_GATE=open.
     """
     going_live = active is not None and map_status(active) == "1"
-    spend = going_live or bool(budget_action)
+    spend = going_live or bool(budget_action) or budget_target is not None
     blocked = _gate(
         "spend" if spend else "write",
         confirm,
@@ -543,6 +564,7 @@ async def edit_ad(
             "active": active,
             "budget_action": budget_action,
             "budget_amount": budget_amount,
+            "budget_target": budget_target,
         },
     )
     if blocked:
@@ -550,9 +572,19 @@ async def edit_ad(
     client, err = await _client_or_fail()
     if err:
         return err
-    money_err = await _money_error(client, cpm=cpm, daily_budget=daily_budget, budget_amount=budget_amount)
+    money_err = await _money_error(
+        client, cpm=cpm, daily_budget=daily_budget, budget_amount=budget_amount, budget_target=budget_target
+    )
     if money_err:
         return money_err
+    if budget_target is not None:
+        if budget_action or budget_amount:
+            return attach_gate({"ok": False, "code": "invalid_args", "retryable": False,
+                                "error": "Pass budget_target or budget_action+budget_amount, not both."})
+        budget_action, budget_amount = await _budget_delta(client, ad_id, budget_target)
+        if budget_action is None:
+            return attach_gate({"ok": False, "code": "budget_unknown", "retryable": False,
+                                "error": budget_amount or "Current budget unknown; use budget_action."})
     results: dict[str, Any] = {}
     if budget_action and budget_amount:
         method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"
@@ -865,7 +897,7 @@ async def upload_media(
 async def get_ad_stats(
     ad_id: str,
     period: Literal["5min", "day"] = "5min",
-    detail: Literal["summary", "full"] = "summary",
+    detail: Literal["summary", "full", "csv"] = "summary",
 ) -> dict[str, Any]:
     """Time-bucketed stats plus CTR / CPC / actual CPM.
 
@@ -875,13 +907,19 @@ async def get_ad_stats(
     `summary.spend` is already scaled (Gram on a TON cabinet); `spend_already_scaled`
     is true; `spend_scale` stays for compatibility. Do not divide again.
     `charts.budget` series/totals are scaled the same way (`values_already_scaled`).
-    Prefer `summary.spend`. No CSV tool — if you save a file, gitignored `reports/`.
+    Prefer `summary.spend`. detail=csv returns `csv` (time + every chart series) instead of
+    `charts`; if you save it, use gitignored `reports/`.
     detail=summary (default) omits the per-bucket `charts`; detail=full returns them.
     """
     client, err = await _client_or_fail()
     if err:
         return err
     stats = await client.get_ad_stats(ad_id, period=period)
+    if detail == "csv" and isinstance(stats, dict) and isinstance(stats.get("charts"), dict):
+        csv_text = charts_to_csv(stats["charts"])
+        stats = {k: v for k, v in stats.items() if k != "charts"}
+        stats["csv"] = csv_text
+        return stats
     if detail == "summary" and isinstance(stats, dict) and "charts" in stats:
         stats = {k: v for k, v in stats.items() if k != "charts"}
         stats["charts_omitted"] = True

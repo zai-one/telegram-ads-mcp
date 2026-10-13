@@ -298,3 +298,22 @@ async def test_stars_cabinet_whole_numbers_and_no_users() -> None:
     assert good["ok"] is True
     method, params = fake.call.await_args.args[:2]
     assert method == "createAd" and params["cpm"] == "2"
+
+
+@pytest.mark.asyncio
+async def test_edit_ad_budget_target_sends_difference() -> None:
+    fake = _ton_gram_client()
+    fake.get_ad.return_value = {"ok": True, "ad": {"budget": "5.5"}}
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+        "os.environ", {"TG_ADS_WRITE_GATE": "open"}
+    ):
+        up = await server_mod.edit_ad(ad_id="7", budget_target="8")
+        first = fake.call.await_args_list[0].args
+        fake.call.reset_mock()
+        down = await server_mod.edit_ad(ad_id="7", budget_target="5")
+        second = fake.call.await_args_list[0].args
+        same = await server_mod.edit_ad(ad_id="7", budget_target="5.5")
+        both = await server_mod.edit_ad(ad_id="7", budget_target="9", budget_action="increase", budget_amount="1")
+    assert first[0] == "incrAdBudget" and first[1]["amount"] == "2.5" and up["ok"] is not False
+    assert second[0] == "decrAdBudget" and second[1]["amount"] == "0.5" and down["ok"] is not False
+    assert same["code"] == "budget_unknown" and both["code"] == "invalid_args"
