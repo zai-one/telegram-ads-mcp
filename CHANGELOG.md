@@ -9,7 +9,7 @@ Agent layer per the ZAI.ONE MCP standard. No version bump.
 - Resources `ads://guide/index` and `ads://guide/{topic}` (one playbook section at a time); `ads://playbook` unchanged.
 - Structured errors add `retryable`, `hint`, `docs`; new playbook section **Errors**.
 - Compact output: `get_ads(detail="summary")` drops null/empty fields; `get_ad_stats(detail="summary")` omits per-bucket `charts` (pass `detail="full"` for the old payload).
-- `.env` lookup: `TG_ADS_ENV_FILE`, then the working directory, then the checkout (uvx / plugin installs).
+- `.env` lookup (uvx / plugin installs): `TG_ADS_ENV_FILE` if set (read in full); otherwise the checkout's `.env` as before, plus only the `STEL_*` cookies from `.env` in the working directory itself (no parent walk). Settings (`TG_ADS_WRITE_GATE`, `MCP_TRANSPORT` / `MCP_HOST` / `MCP_PORT`, ...) in a working-directory `.env` are ignored.
 - Claude Code (`.claude-plugin/plugin.json`) and Cursor (`.cursor-plugin/plugin.json`) plugins plus a single-plugin marketplace (`.claude-plugin/marketplace.json`); README install snippets for Claude Code, Cursor, Codex, Claude Desktop.
 - CI: `scripts/token_budget.py --strict` and skill reference sync check.
 

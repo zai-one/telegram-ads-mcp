@@ -112,8 +112,11 @@ def test_env_file_override(tmp_path, monkeypatch) -> None:
 
     env = tmp_path / "ads.env"
     env.write_text("STEL_TOKEN=t-test\nSTEL_SSID=s-test\n", encoding="utf-8")
-    monkeypatch.delenv("STEL_TOKEN", raising=False)
-    monkeypatch.delenv("STEL_SSID", raising=False)
+    # setenv first so monkeypatch records the prior state and undoes what load_env sets later;
+    # a bare delenv(raising=False) on an absent key records nothing and the values would leak.
+    for key in ("STEL_TOKEN", "STEL_SSID"):
+        monkeypatch.setenv(key, "")
+        monkeypatch.delenv(key)
     monkeypatch.setenv("TG_ADS_ENV_FILE", str(env))
     session.load_env()
     assert session.env_ready()

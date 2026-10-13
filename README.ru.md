@@ -75,7 +75,7 @@ HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --po
 
 ## Установка где угодно (uvx, плагины)
 
-Cookies живут только в файле `.env` на диске (не в `env` MCP и не в чате). Для uvx укажите путь к нему в `TG_ADS_ENV_FILE` (только путь) или запускайте клиент из папки с `.env`.
+Cookies живут только в файле `.env` на диске (не в `env` MCP и не в чате). Для uvx укажите путь к нему в `TG_ADS_ENV_FILE` (только путь) или запускайте клиент из папки с `.env`. Из `.env` рабочей папки (только самой папки, не родительских) сервер берёт лишь cookies `STEL_*`; настройки вроде `TG_ADS_WRITE_GATE`, `MCP_TRANSPORT` / `MCP_HOST` / `MCP_PORT` или `TG_ADS_DISABLE_UPDATE_CHECK` читаются только из `TG_ADS_ENV_FILE`, из `.env` самого клона или из окружения процесса — чужой `.env` проекта не откроет write gate и не выставит сервер в сеть.
 
 ```bash
 # Claude Code: только MCP

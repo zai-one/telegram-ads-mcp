@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
-from dotenv import find_dotenv, load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from telegram_ads_mcp.client import ConfigError, StarsCabinetError, TelegramAdsClient
 
@@ -17,17 +18,55 @@ _clients: dict[str, TelegramAdsClient] = {}
 _active_key = ""
 
 
+# The working directory belongs to whatever project the MCP host started the server in, so its
+# .env is not ours: only the session cookies are taken from it. Transport, bind address and the
+# write gate must never be switchable by an unrelated project's .env.
+_CWD_ENV_PREFIX = "STEL_"
+
+
+def _cwd_cookies() -> dict[str, str]:
+    """STEL_* keys from ``<cwd>/.env`` only. No parent walk, nothing else is imported."""
+    try:
+        path = Path.cwd() / ".env"
+    except OSError:
+        return {}
+    if not path.is_file():
+        return {}
+    return {
+        key: value
+        for key, value in dotenv_values(path).items()
+        if key.startswith(_CWD_ENV_PREFIX) and value is not None
+    }
+
+
+def _checkout_env() -> dict[str, str]:
+    """The repo checkout's .env, as on master: the nearest .env upward from this package's
+    directory (not from the working directory, whatever the interpreter mode)."""
+    here = Path(__file__).resolve().parent
+    for folder in (here, *here.parents):
+        path = folder / ".env"
+        if path.is_file():
+            return {key: value for key, value in dotenv_values(path).items() if value is not None}
+    return {}
+
+
 def load_env(override: bool = False) -> None:
-    """Load .env: TG_ADS_ENV_FILE if set, else the nearest .env from the working directory
-    (uvx / plugin installs), else the repo checkout's .env. Values never leave the process."""
+    """Load settings and cookies. Values never leave the process.
+
+    1. ``TG_ADS_ENV_FILE`` if set: that file is trusted in full and nothing else is read.
+    2. Otherwise the repo checkout's .env (full trust, as before), plus ``STEL_*`` from
+       ``<cwd>/.env`` (uvx / plugin installs). The cwd file wins for ``STEL_*``; any other key
+       in it (MCP_HOST, MCP_TRANSPORT, TG_ADS_WRITE_GATE, ...) is ignored.
+    """
     explicit = os.environ.get("TG_ADS_ENV_FILE", "").strip()
     if explicit:
         load_dotenv(explicit, override=override)
         return
-    cwd_env = find_dotenv(usecwd=True)
-    if cwd_env:
-        load_dotenv(cwd_env, override=override)
-    load_dotenv(override=override and not cwd_env)
+    values = _checkout_env()
+    values.update(_cwd_cookies())
+    for key, value in values.items():
+        if override or key not in os.environ:
+            os.environ[key] = value
 
 
 def env_ready() -> bool:
