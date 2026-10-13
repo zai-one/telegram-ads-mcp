@@ -1,0 +1,12 @@
+{
+  "name": "telegram-ads-mcp",
+  "description": "Telegram Ads MCP server and skills by ZAI.ONE",
+  "owner": { "name": "ZAI.ONE", "url": "https://github.com/zai-one" },
+  "plugins": [
+    {
+      "name": "telegram-ads",
+      "source": "./",
+      "description": "Telegram Ads (TON/Gram): MCP server + launch/review/diagnose skills."
+    }
+  ]
+}

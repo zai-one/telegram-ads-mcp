@@ -1,6 +1,6 @@
 """Agent-facing tool titles and descriptions (L0 token budget).
 
-Template (zai-one/agent-plugins templates/tool-description.md):
+Template (ZAI.ONE MCP standard):
   <Verb + object>. Use when <situation>; for <neighbour task> use `<other_tool>`.
   [Cost/Writes rule.] Returns <key fields>.
 Each description stays <= 300 chars, first sentence <= 120 chars.

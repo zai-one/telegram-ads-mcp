@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """ZAI.ONE MCP standard: token-budget and Agent Skills checks (dependency-free).
 
-Copy this file to ``scripts/token_budget.py`` in a server repo (template), or run it
-from a checkout of zai-one/agent-plugins (reusable workflow ``mcp-standard.yml``).
+Same file in every zai-one MCP repo (copy, no shared dependency).
 
 Checks
-  * skills/<name>/SKILL.md (and plugins/*/skills/<name>/SKILL.md): frontmatter per
+  * skills/<name>/SKILL.md: frontmatter per
     https://agentskills.io/specification - name 1-64 [a-z0-9-], no "--", equals the
     folder; description 1..1024 (standard: <=300 recommended); compatibility <=500;
     metadata str->str; body <= 80 lines; relative links resolve.
@@ -131,7 +130,7 @@ def check_skill(path: Path, report: Report) -> None:
 
 
 def find_skills(root: Path) -> list[Path]:
-    patterns = ("skills/*/SKILL.md", "plugins/*/skills/*/SKILL.md")
+    patterns = ("skills/*/SKILL.md",)
     found: list[Path] = []
     for pattern in patterns:
         found.extend(sorted(root.glob(pattern)))

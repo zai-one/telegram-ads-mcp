@@ -81,8 +81,8 @@ Cookies stay in a `.env` file on disk (never in MCP `env` values or chat). For u
 # Claude Code: MCP only
 claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
 # Claude Code: plugin = MCP + skills (launch / review / diagnose)
-/plugin marketplace add zai-one/agent-plugins
-/plugin install telegram-ads@zai-one
+/plugin marketplace add zai-one/telegram-ads-mcp
+/plugin install telegram-ads@telegram-ads-mcp
 ```
 
 Cursor: [one-click install](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcCIsInRlbGVncmFtLWFkcy1tY3AiXSwiZW52Ijp7IlRHX0FEU19FTlZfRklMRSI6Ii9wYXRoL3RvL3RlbGVncmFtLWFkcy5lbnYifX0=) or `.cursor/mcp.json`:

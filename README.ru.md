@@ -81,8 +81,8 @@ Cookies живут только в файле `.env` на диске (не в `e
 # Claude Code: только MCP
 claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
 # Claude Code: плагин = MCP + skills (запуск / обзор / диагностика)
-/plugin marketplace add zai-one/agent-plugins
-/plugin install telegram-ads@zai-one
+/plugin marketplace add zai-one/telegram-ads-mcp
+/plugin install telegram-ads@telegram-ads-mcp
 ```
 
 Cursor: [установка в один клик](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcCIsInRlbGVncmFtLWFkcy1tY3AiXSwiZW52Ijp7IlRHX0FEU19FTlZfRklMRSI6Ii9wYXRoL3RvL3RlbGVncmFtLWFkcy5lbnYifX0=) или `.cursor/mcp.json`:
