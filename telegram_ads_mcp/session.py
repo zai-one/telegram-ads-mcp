@@ -6,7 +6,7 @@ import logging
 import os
 from typing import Any
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from telegram_ads_mcp.client import ConfigError, StarsCabinetError, TelegramAdsClient
 
@@ -15,6 +15,19 @@ log = logging.getLogger("telegram_ads_mcp.session")
 # owner_id -> client. The empty key is the currently selected default.
 _clients: dict[str, TelegramAdsClient] = {}
 _active_key = ""
+
+
+def load_env(override: bool = False) -> None:
+    """Load .env: TG_ADS_ENV_FILE if set, else the nearest .env from the working directory
+    (uvx / plugin installs), else the repo checkout's .env. Values never leave the process."""
+    explicit = os.environ.get("TG_ADS_ENV_FILE", "").strip()
+    if explicit:
+        load_dotenv(explicit, override=override)
+        return
+    cwd_env = find_dotenv(usecwd=True)
+    if cwd_env:
+        load_dotenv(cwd_env, override=override)
+    load_dotenv(override=override and not cwd_env)
 
 
 def env_ready() -> bool:
@@ -51,7 +64,7 @@ async def close_all() -> None:
 
 async def reload_from_env() -> TelegramAdsClient:
     """Re-read .env (override) and rebuild the active client. No cookie args."""
-    load_dotenv(override=True)
+    load_env(override=True)
     await close_all()
     return await get_client()
 
@@ -59,7 +72,7 @@ async def reload_from_env() -> TelegramAdsClient:
 async def get_client() -> TelegramAdsClient:
     global _active_key
     if not env_ready():
-        load_dotenv()
+        load_env()
     if not env_ready():
         raise ConfigError(missing_env_message())
     key = _active_key
@@ -89,14 +102,29 @@ async def switch_account(owner_id: str) -> TelegramAdsClient:
     return client
 
 
+_ERROR_HINTS: dict[str, tuple[bool, str]] = {
+    "config": (False, "Set STEL_TOKEN/STEL_SSID in .env (INSTALL.md), then call reload_session."),
+    "auth": (False, "Offer INSTALL.md DevTools steps; the user updates .env on disk, then reload_session."),
+    "stars_cabinet": (False, "Stars cabinet: call list_accounts and select_account to switch."),
+    "error": (True, "Unexpected error; retry once, then offer an Issue without secrets."),
+}
+
+
+def _with_hint(payload: dict[str, Any]) -> dict[str, Any]:
+    retryable, hint = _ERROR_HINTS[payload["code"]]
+    payload.update(retryable=retryable, hint=hint, docs=f"ads://guide/errors#{payload['code']}")
+    return payload
+
+
 def fail_payload(exc: BaseException) -> dict[str, Any]:
+    """Structured failure: ok=false, error (text), code, retryable, hint, docs."""
     from telegram_ads_mcp.client import AuthError
 
     if isinstance(exc, ConfigError):
-        return {"ok": False, "error": str(exc), "code": "config"}
+        return _with_hint({"ok": False, "error": str(exc), "code": "config"})
     if isinstance(exc, AuthError):
-        return {"ok": False, "error": str(exc), "code": "auth"}
+        return _with_hint({"ok": False, "error": str(exc), "code": "auth"})
     if isinstance(exc, StarsCabinetError):
-        return {"ok": False, "error": str(exc), "code": "stars_cabinet", "cabinet": "stars"}
+        return _with_hint({"ok": False, "error": str(exc), "code": "stars_cabinet", "cabinet": "stars"})
     log.exception("unexpected error")
-    return {"ok": False, "error": str(exc), "code": "error"}
+    return _with_hint({"ok": False, "error": str(exc), "code": "error"})

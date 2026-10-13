@@ -11,14 +11,15 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
-from dotenv import load_dotenv
 from mcp.server import MCPServer
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 
-from telegram_ads_mcp import __version__
+from telegram_ads_mcp import __version__, guide
 from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError
+from telegram_ads_mcp.descriptions import meta
 from telegram_ads_mcp.gate import attach_gate, gated
 from telegram_ads_mcp.parse import (
+    compact,
     access_denied_payload,
     channel_langs_conflict,
     filter_ads_by_status,
@@ -27,10 +28,10 @@ from telegram_ads_mcp.parse import (
     redact,
 )
 from telegram_ads_mcp.preview import render_card
-from telegram_ads_mcp.session import fail_payload, get_client, reload_from_env, switch_account
+from telegram_ads_mcp.session import fail_payload, get_client, load_env, reload_from_env, switch_account
 from telegram_ads_mcp.update_check import cached_update_hint, check_for_update, refresh_in_background
 
-load_dotenv()
+load_env()
 
 logging.basicConfig(
     level=os.environ.get("TG_ADS_LOG_LEVEL", "INFO").upper(),
@@ -50,11 +51,6 @@ class _RedactFilter(logging.Filter):
 _root.addFilter(_RedactFilter())
 log = logging.getLogger("telegram_ads_mcp")
 
-_PLAYBOOK_CANDIDATES = (
-    Path(__file__).resolve().parent / "AGENTS.md",
-    Path(__file__).resolve().parent.parent / "AGENTS.md",
-)
-
 READ = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True)
 DEST = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True)
@@ -67,14 +63,18 @@ mcp = MCPServer(
     title="Telegram Ads",
     version=__version__,
     instructions=(
-        "MCP server for ads.telegram.org. TON cabinet billed in Gram (say Gram or TON). "
-        "User-geo (users) is allowed. Stars cabinets are refused — switch with "
-        "list_accounts/select_account. Cookies live in .env only (STEL_TOKEN, STEL_SSID). "
-        "Never ask the user to paste cookies into chat; offer INSTALL.md DevTools steps; "
-        "they write .env on disk, then call reload_session. TG_ADS_WRITE_GATE=strict|confirm|open (default confirm): "
-        "spend/destructive tools need confirm=true unless gate=open. "
-        "Always create ads on_hold. launch_ad spends budget and sends review; it does not activate. "
-        "Read ads://playbook at session start. Two jobs: cabinet vs this git repo — do not mix."
+        "telegram-ads MCP: ads.telegram.org TON cabinet, billed in Gram (say Gram or TON). "
+        "Start: check_session, then get_account (cabinet, currency, write_gate). "
+        "Never guess IDs: use search_targets / get_targeting_reference. "
+        "Money: ads are created on_hold; launch_ad spends budget and sends review, never activates. "
+        "Writes: TG_ADS_WRITE_GATE (default confirm) - spend/destructive need confirm=true after the "
+        "user says yes; confirm_hash tools are two-step (never invent hashes). "
+        "Auth: cookies live only in .env, never in chat; after the user edits .env call reload_session. "
+        "Stars cabinet: list_accounts then select_account. "
+        "Playbooks: skills telegram-ads-launch-campaign, telegram-ads-review-account, "
+        "telegram-ads-diagnose-ad (same as prompts launch-campaign, review-account, diagnose-ad); "
+        "details in ads://guide/index, full text ads://playbook. "
+        "Errors: retry only if retryable; follow hint. Cabinet work vs this git repo: do not mix."
         + (f" {_STARTUP_UPDATE_HINT}" if _STARTUP_UPDATE_HINT else "")
     ),
     website_url="https://github.com/zai-one/telegram-ads-mcp",
@@ -120,11 +120,23 @@ def _maybe_access_denied(result: Any, *, tool: str, action: str) -> Any:
 
 @mcp.resource("ads://playbook", mime_type="text/markdown")
 def playbook_resource() -> str:
-    """Agent playbook: auth, create-on-hold, budget, review, Gram."""
-    for path in _PLAYBOOK_CANDIDATES:
-        if path.is_file():
-            return path.read_text(encoding="utf-8")
-    return "AGENTS.md is missing from the install."
+    """Full agent playbook (AGENTS.md). Prefer ads://guide/{topic} for one section."""
+    return guide.playbook()
+
+
+@mcp.resource("ads://guide/index", mime_type="text/markdown")
+def guide_index_resource() -> str:
+    """List of guide topics: auth, write-gate, errors, stats, create, danger, ..."""
+    return guide.index()
+
+
+@mcp.resource("ads://guide/{topic}", mime_type="text/markdown")
+def guide_resource(topic: str) -> str:
+    """One playbook section by topic (see ads://guide/index)."""
+    body = guide.topic(topic)
+    if body is None:
+        return f"Unknown topic {topic!r}.\n\n" + guide.index()
+    return body
 
 
 @mcp.resource("ads://account", mime_type="application/json")
@@ -184,7 +196,7 @@ def diagnose_ad_prompt(ad_id: str = "") -> str:
 # ── auth ─────────────────────────────────────────────────────────────
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("check_session"))
 async def check_session() -> dict[str, Any]:
     """Ping the current ads.telegram.org session.
 
@@ -206,7 +218,7 @@ async def check_session() -> dict[str, Any]:
     return info
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("check_update"))
 def check_update(force: bool = False) -> dict[str, Any]:
     """Check GitHub for a newer telegram-ads-mcp release; suggest only, never install.
 
@@ -219,7 +231,7 @@ def check_update(force: bool = False) -> dict[str, Any]:
     return check_for_update(force=bool(force))
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("reload_session"))
 async def reload_session() -> dict[str, Any]:
     """Re-read .env (STEL_TOKEN / STEL_SSID / STEL_ADOWNER) and rebuild the HTTP session.
 
@@ -233,7 +245,7 @@ async def reload_session() -> dict[str, Any]:
         return attach_gate(fail_payload(exc))
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("list_accounts"))
 async def list_accounts() -> dict[str, Any]:
     """List ad cabinets for this Telegram login. Works even on a Stars cabinet so you can switch away."""
     client, err = await _client_or_fail(require_supported=False)
@@ -246,7 +258,7 @@ async def list_accounts() -> dict[str, Any]:
         return attach_gate(fail_payload(exc))
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("select_account"))
 async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]:
     """Switch the active ad cabinet. Then check_session / get_account.
 
@@ -274,7 +286,7 @@ async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]
         return attach_gate(fail_payload(exc))
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("get_account"))
 async def get_account() -> dict[str, Any]:
     """Current cabinet card: owner_id, cabinet (ton/eur/stars), currency (GRAM/EUR), balance, write_gate."""
     client, err = await _client_or_fail(require_supported=False)
@@ -289,16 +301,18 @@ async def get_account() -> dict[str, Any]:
 # ── ads ──────────────────────────────────────────────────────────────
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("get_ads"))
 async def get_ads(
     offset_id: str | None = None,
     status: Literal["any", "active", "on_hold"] = "any",
+    detail: Literal["summary", "full"] = "summary",
 ) -> dict[str, Any]:
     """List ads (100 per page). Filter by status client-side.
 
     Args:
         offset_id: Pagination cursor from next_offset_id.
         status: any | active | on_hold.
+        detail: summary drops null/empty fields from items; full returns them as-is.
     """
     client, err = await _client_or_fail()
     if err:
@@ -312,10 +326,15 @@ async def get_ads(
         result["filtered_status"] = status
     if isinstance(result, dict):
         result.setdefault("ok", True)
+        if detail == "summary":
+            result = dict(result)
+            for key in ("items", "ads"):
+                if isinstance(result.get(key), list):
+                    result[key] = [compact(item) for item in result[key]]
     return result
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("get_ad"))
 async def get_ad(ad_id: str) -> dict[str, Any]:
     """Fetch a single ad by id (API method, HTML state, or list fallback)."""
     client, err = await _client_or_fail()
@@ -324,7 +343,7 @@ async def get_ad(ad_id: str) -> dict[str, Any]:
     return await client.get_ad(ad_id)
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("create_ad"))
 async def create_ad(
     title: str,
     promote_url: str,
@@ -468,7 +487,7 @@ async def create_ad(
     return result
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("edit_ad"))
 async def edit_ad(
     ad_id: str,
     title: str | None = None,
@@ -574,7 +593,7 @@ async def edit_ad(
     return results
 
 
-@mcp.tool(annotations=DEST)
+@mcp.tool(annotations=DEST, **meta("delete_ad"))
 async def delete_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool = False) -> dict[str, Any]:
     """Delete an ad. Two-step: first call without confirm_hash; pass the returned hash to confirm.
 
@@ -592,7 +611,7 @@ async def delete_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool =
     return await client.call("deleteAd", params)
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("clone_ad"))
 async def clone_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool = False) -> dict[str, Any]:
     """Duplicate an ad into a new draft. Targeting is copied; edit the clone if you need changes.
 
@@ -610,7 +629,7 @@ async def clone_ad(ad_id: str, confirm_hash: str | None = None, confirm: bool = 
     return await client.call("createDraftFromAd", params)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("check_ad_post"))
 async def check_ad_post(promote_url: str, text: str = "") -> dict[str, Any]:
     """Validate promote URL + text before create/launch. Surfaces platform errors."""
     client, err = await _client_or_fail()
@@ -619,7 +638,7 @@ async def check_ad_post(promote_url: str, text: str = "") -> dict[str, Any]:
     return await client.call("checkAdPost", {"owner_id": client.owner_id, "promote_url": promote_url, "text": text})
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("send_target_to_review"))
 async def send_target_to_review(ad_id: str, confirm: bool = False) -> dict[str, Any]:
     """Submit (or resubmit) targeting for review. Requires a non-zero budget. Spend-class gate."""
     blocked = _gate("spend", confirm, "send_target_to_review", {"ad_id": ad_id})
@@ -631,7 +650,7 @@ async def send_target_to_review(ad_id: str, confirm: bool = False) -> dict[str, 
     return await client.call("sendTargetToReview", {"owner_id": client.owner_id, "ad_id": ad_id})
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("launch_ad"))
 async def launch_ad(
     title: str,
     promote_url: str,
@@ -755,7 +774,7 @@ async def launch_ad(
     return {"ok": True, "ad_id": str(ad_id), "steps": steps}
 
 
-@mcp.tool(annotations=READ, structured_output=False)
+@mcp.tool(annotations=READ, structured_output=False, **meta("preview_ad"))
 async def preview_ad(ad_id: str) -> CallToolResult:
     """Render a sponsored-message preview PNG for chat, and save it under TG_ADS_PREVIEW_DIR (default ./previews)."""
     client, err = await _client_or_fail()
@@ -796,7 +815,7 @@ async def preview_ad(ad_id: str) -> CallToolResult:
     )
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("upload_media"))
 async def upload_media(
     file_path: str | None = None,
     filename: str | None = None,
@@ -831,8 +850,12 @@ async def upload_media(
     return await client.upload_media(file_path=file_path, filename=filename, content=content, ad_id=ad_id)
 
 
-@mcp.tool(annotations=READ)
-async def get_ad_stats(ad_id: str, period: Literal["5min", "day"] = "5min") -> dict[str, Any]:
+@mcp.tool(annotations=READ, **meta("get_ad_stats"))
+async def get_ad_stats(
+    ad_id: str,
+    period: Literal["5min", "day"] = "5min",
+    detail: Literal["summary", "full"] = "summary",
+) -> dict[str, Any]:
     """Time-bucketed stats plus CTR / CPC / actual CPM.
 
     period=5min → last 24h in 5-minute buckets. period=day → full lifetime daily.
@@ -842,17 +865,23 @@ async def get_ad_stats(ad_id: str, period: Literal["5min", "day"] = "5min") -> d
     is true; `spend_scale` stays for compatibility. Do not divide again.
     `charts.budget` series/totals are scaled the same way (`values_already_scaled`).
     Prefer `summary.spend`. No CSV tool — if you save a file, gitignored `reports/`.
+    detail=summary (default) omits the per-bucket `charts`; detail=full returns them.
     """
     client, err = await _client_or_fail()
     if err:
         return err
-    return await client.get_ad_stats(ad_id, period=period)
+    stats = await client.get_ad_stats(ad_id, period=period)
+    if detail == "summary" and isinstance(stats, dict) and "charts" in stats:
+        stats = {k: v for k, v in stats.items() if k != "charts"}
+        stats["charts_omitted"] = True
+        stats["hint"] = "Pass detail='full' for per-bucket charts."
+    return stats
 
 
 # ── targeting ────────────────────────────────────────────────────────
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("search_targets"))
 async def search_targets(
     kind: Literal["channel", "bot", "query", "location", "similar_channels", "similar_bots"],
     query: str = "",
@@ -892,7 +921,7 @@ async def search_targets(
     return {"ok": False, "error": f"unknown kind {kind}"}
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=READ, **meta("get_targeting_reference"))
 async def get_targeting_reference(
     kind: Literal["user", "channel", "both"] = "both",
 ) -> dict[str, Any]:
@@ -925,7 +954,7 @@ async def get_targeting_reference(
 # ── audiences / events / funds ───────────────────────────────────────
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("manage_audience"))
 async def manage_audience(
     action: Literal["list", "create", "rename", "delete", "clone"],
     audience_id: str | None = None,
@@ -1012,7 +1041,7 @@ async def manage_audience(
     return {"ok": False, "error": f"unknown action {action}"}
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("manage_event"))
 async def manage_event(
     action: Literal["list", "create", "rename", "delete", "create_pixel"],
     event_id: str | None = None,
@@ -1078,7 +1107,7 @@ async def manage_event(
     return {"ok": False, "error": f"unknown action {action}"}
 
 
-@mcp.tool(annotations=DEST)
+@mcp.tool(annotations=DEST, **meta("manage_funds"))
 async def manage_funds(
     action: Literal["add", "transfer", "withdraw", "search", "list"],
     amount: str | None = None,
@@ -1138,7 +1167,7 @@ async def manage_funds(
     return {"ok": False, "error": f"unknown action {action}"}
 
 
-@mcp.tool(annotations=DEST)
+@mcp.tool(annotations=DEST, **meta("revoke_token"))
 async def revoke_token(confirm: bool = False) -> dict[str, Any]:
     """Revoke and regenerate the cabinet API token (IP-whitelist token, not ads cookies)."""
     blocked = _gate("danger", confirm, "revoke_token", {"action": "revoke_token"})
@@ -1150,7 +1179,7 @@ async def revoke_token(confirm: bool = False) -> dict[str, Any]:
     return await client.call("revokeToken", {"owner_id": client.owner_id})
 
 
-@mcp.tool(annotations=WRITE)
+@mcp.tool(annotations=WRITE, **meta("save_api_settings"))
 async def save_api_settings(ip_list: str, confirm: bool = False) -> dict[str, Any]:
     """Set the IP whitelist for the cabinet API token. Newline-separated IPs."""
     blocked = _gate("danger", confirm, "save_api_settings", {"ip_list": ip_list})
@@ -1162,7 +1191,7 @@ async def save_api_settings(ip_list: str, confirm: bool = False) -> dict[str, An
     return await client.call("saveApiSettings", {"owner_id": client.owner_id, "ip_list": ip_list})
 
 
-@mcp.tool(annotations=DEST)
+@mcp.tool(annotations=DEST, **meta("log_out"))
 async def log_out(confirm: bool = False) -> dict[str, Any]:
     """Log out of ads.telegram.org for this session. You will need fresh cookies in .env afterwards."""
     blocked = _gate("danger", confirm, "log_out", {"action": "log_out"})
