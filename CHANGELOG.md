@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+Agent layer per the ZAI.ONE MCP standard. No version bump.
+
+- Router `instructions` (<=1200 chars) and template tool descriptions + titles (`telegram_ads_mcp/descriptions.py`, each <=300 chars).
+- Skills `skills/telegram-ads-{launch-campaign,review-account,diagnose-ad}` (Agent Skills spec) with `references/` generated from AGENTS.md (`scripts/sync_skills.py`).
+- Resources `ads://guide/index` and `ads://guide/{topic}` (one playbook section at a time); `ads://playbook` unchanged.
+- Structured errors add `retryable`, `hint`, `docs`; new playbook section **Errors**.
+- Compact output: `get_ads(detail="summary")` drops null/empty fields; `get_ad_stats(detail="summary")` omits per-bucket `charts` (pass `detail="full"` for the old payload).
+- `.env` lookup (uvx / plugin installs): `TG_ADS_ENV_FILE` if set (read in full); otherwise the checkout's `.env` as before, plus only the `STEL_*` cookies from `.env` in the working directory itself (no parent walk). Settings (`TG_ADS_WRITE_GATE`, `MCP_TRANSPORT` / `MCP_HOST` / `MCP_PORT`, ...) in a working-directory `.env` are ignored.
+- Claude Code (`.claude-plugin/plugin.json`) and Cursor (`.cursor-plugin/plugin.json`) plugins plus a single-plugin marketplace (`.claude-plugin/marketplace.json`); README install snippets for Claude Code, Cursor, Codex, Claude Desktop.
+- CI: `scripts/token_budget.py --strict` and skill reference sync check.
+
 ## 0.4.0 — 2026-10-12
 
 Operator-facing: suggest-only update check (26th tool), MCP SDK 2.3.0 lock.

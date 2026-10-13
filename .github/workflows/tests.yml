@@ -34,6 +34,11 @@ jobs:
       - name: Security scan
         run: python scripts/check_security.py
 
+      - name: Token budget + skills spec
+        run: |
+          python scripts/token_budget.py --strict
+          python scripts/sync_skills.py --check
+
       - name: Suite
         run: python -m pytest tests -q
 

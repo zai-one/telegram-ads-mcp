@@ -252,3 +252,25 @@ def test_prompts_match_stats_contract() -> None:
     launch = server_mod.launch_campaign_prompt()
     assert "already scaled" in launch.lower()
     assert "reports/" in launch
+
+
+@pytest.mark.asyncio
+async def test_get_ad_stats_summary_omits_charts() -> None:
+    fake = _ton_gram_client()
+    fake.get_ad_stats = AsyncMock(return_value={"ok": True, "period": "5min", "summary": {"spend": "1"}, "charts": {"x": [1]}})
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        lean = await server_mod.get_ad_stats("35")
+        full = await server_mod.get_ad_stats("35", detail="full")
+    assert "charts" not in lean and lean["charts_omitted"] is True and lean["summary"]["spend"] == "1"
+    assert full["charts"] == {"x": [1]}
+
+
+@pytest.mark.asyncio
+async def test_get_ads_summary_compacts_items() -> None:
+    fake = _ton_gram_client()
+    fake.get_ads_list = AsyncMock(return_value={"items": [{"ad_id": "1", "text": "", "media": None}]})
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)):
+        lean = await server_mod.get_ads()
+        full = await server_mod.get_ads(detail="full")
+    assert lean["items"] == [{"ad_id": "1"}]
+    assert full["items"][0]["media"] is None

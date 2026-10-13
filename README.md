@@ -73,6 +73,39 @@ Agent setup (clone, config, **star**): copy [INSTALL.md](INSTALL.md) into the ch
 
 HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --port 8000` → `http://127.0.0.1:8000/mcp`.
 
+## Install anywhere (uvx, plugins)
+
+Cookies stay in a `.env` file on disk (never in MCP `env` values or chat). For uvx installs point `TG_ADS_ENV_FILE` at that file (path only), or start the client from a folder that has `.env`. From the working folder's `.env` (that folder only, not its parents) the server takes `STEL_*` cookies and nothing else; settings such as `TG_ADS_WRITE_GATE`, `MCP_TRANSPORT` / `MCP_HOST` / `MCP_PORT` or `TG_ADS_DISABLE_UPDATE_CHECK` are read only from `TG_ADS_ENV_FILE`, the clone's own `.env`, or the process environment, so an unrelated project's `.env` cannot open the write gate or expose the server on the network.
+
+```bash
+# Claude Code: MCP only
+claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
+# Claude Code: plugin = MCP + skills (launch / review / diagnose)
+/plugin marketplace add zai-one/telegram-ads-mcp
+/plugin install telegram-ads@telegram-ads-mcp
+```
+
+Cursor: [one-click install](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcCIsInRlbGVncmFtLWFkcy1tY3AiXSwiZW52Ijp7IlRHX0FEU19FTlZfRklMRSI6Ii9wYXRoL3RvL3RlbGVncmFtLWFkcy5lbnYifX0=) or `.cursor/mcp.json`:
+
+```json
+{"mcpServers": {"telegram-ads": {"command": "uvx", "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp", "telegram-ads-mcp"], "env": {"TG_ADS_ENV_FILE": "/path/to/telegram-ads.env"}}}}
+```
+
+Codex `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.telegram-ads]
+command = "uvx"
+args = ["--from", "git+https://github.com/zai-one/telegram-ads-mcp", "telegram-ads-mcp"]
+env = { TG_ADS_ENV_FILE = "/path/to/telegram-ads.env" }
+```
+
+Claude Desktop `claude_desktop_config.json`: the same `mcpServers` block as Cursor. Skills for Codex and other hosts: copy `skills/*` into `.agents/skills/`.
+
+Skills: `telegram-ads-launch-campaign`, `telegram-ads-review-account`, `telegram-ads-diagnose-ad` (mirrored by the prompts). Guides on demand: `ads://guide/index` → `ads://guide/{topic}`.
+
+Example asks: "Review my Telegram Ads cabinet", "Launch an ad for t.me/my_channel with CPM 0.5 and budget 5 Gram", "Why does ad 35 get no views?", "Pause ad 35", "Show stats for ad 35 for its lifetime".
+
 ## Tools
 
 | Area | Tools |

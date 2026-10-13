@@ -1,6 +1,6 @@
 # AGENTS.md — Playbook
 
-MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook`. No YAML frontmatter. Claude Code: `CLAUDE.md` has a bare `@AGENTS.md` line. Install/star: [INSTALL.md](INSTALL.md). Repo/CI: [CONTRIBUTING.md](CONTRIBUTING.md).
+MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook` (this file); one section at a time: `ads://guide/{topic}` (`ads://guide/index`). Skills: `skills/`. No YAML frontmatter. Claude Code: `CLAUDE.md` has a bare `@AGENTS.md` line. Install/star: [INSTALL.md](INSTALL.md). Repo/CI: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Currency
 
@@ -25,6 +25,19 @@ Money and IDs are strings. Multi-IDs are semicolon-separated.
 Blocked call: `code: "write_gated"` with `tool`, `class`, `would_send` (intended args, no secrets), `sent: false`. Not a platform dry-run. Show the operator, re-call with `confirm=true`.
 
 Two jobs — do not mix unless they asked both: **cabinet** (`review-account`) vs **this git repo**.
+
+## Errors
+
+Failures return `ok: false`, `error` (text), `code`, `retryable`, `hint`, `docs` (`ads://guide/errors#<code>`). Retry only when `retryable` is true; otherwise follow `hint`.
+
+| `code` | Meaning | Do |
+| --- | --- | --- |
+| `config` | `.env` cookies missing | INSTALL.md → user edits `.env` → `reload_session` |
+| `auth` | session dead | same as `config`; never `log_out` / `revoke_token` |
+| `stars_cabinet` | Stars cabinet active | `list_accounts` → `select_account` |
+| `write_gated` | gate blocked a write (`sent: false`) | show `would_send`, re-call with `confirm=true` after yes |
+| `access_denied` | audience/event not allowed | `hint: skip`, do not retry |
+| `error` | unexpected | retry once, then offer an Issue |
 
 ## Updates
 
@@ -103,4 +116,4 @@ Call chain a service would replay: `check_session` → `search_targets` → `lau
 
 ## This repo
 
-Tool count 12–28. After editing this file, copy to `telegram_ads_mcp/AGENTS.md`. No extra markdown/reports. No `.env` / `VERIFY.md` in git. Bilingual README + pytest/CI checklist: [CONTRIBUTING.md](CONTRIBUTING.md).
+Tool count 12–28. After editing this file, copy to `telegram_ads_mcp/AGENTS.md` and run `python scripts/sync_skills.py` (skills `references/` are generated from these sections). No extra markdown/reports. No `.env` / `VERIFY.md` in git. Bilingual README + pytest/CI checklist: [CONTRIBUTING.md](CONTRIBUTING.md).

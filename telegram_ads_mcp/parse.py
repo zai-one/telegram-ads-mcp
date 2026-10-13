@@ -574,3 +574,13 @@ def redact(value: str) -> str:
         )
     redacted = re.sub(r"([?&]hash=)[a-f0-9]{8,}", r"\1***", redacted, flags=re.I)
     return redacted
+
+
+def compact(value: Any) -> Any:
+    """Drop None / empty-string / empty-container values recursively (token-lean output)."""
+    if isinstance(value, dict):
+        out = {k: compact(v) for k, v in value.items()}
+        return {k: v for k, v in out.items() if v not in (None, "", [], {})}
+    if isinstance(value, list):
+        return [compact(v) for v in value]
+    return value

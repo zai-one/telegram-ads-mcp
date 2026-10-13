@@ -73,6 +73,39 @@ cp .env.example .env    # STEL_TOKEN / STEL_SSID — шаги DevTools в INSTAL
 
 HTTP: `uv run telegram-ads-mcp --transport streamable-http --host 127.0.0.1 --port 8000` → `http://127.0.0.1:8000/mcp`.
 
+## Установка где угодно (uvx, плагины)
+
+Cookies живут только в файле `.env` на диске (не в `env` MCP и не в чате). Для uvx укажите путь к нему в `TG_ADS_ENV_FILE` (только путь) или запускайте клиент из папки с `.env`. Из `.env` рабочей папки (только самой папки, не родительских) сервер берёт лишь cookies `STEL_*`; настройки вроде `TG_ADS_WRITE_GATE`, `MCP_TRANSPORT` / `MCP_HOST` / `MCP_PORT` или `TG_ADS_DISABLE_UPDATE_CHECK` читаются только из `TG_ADS_ENV_FILE`, из `.env` самого клона или из окружения процесса — чужой `.env` проекта не откроет write gate и не выставит сервер в сеть.
+
+```bash
+# Claude Code: только MCP
+claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp telegram-ads-mcp
+# Claude Code: плагин = MCP + skills (запуск / обзор / диагностика)
+/plugin marketplace add zai-one/telegram-ads-mcp
+/plugin install telegram-ads@telegram-ads-mcp
+```
+
+Cursor: [установка в один клик](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcCIsInRlbGVncmFtLWFkcy1tY3AiXSwiZW52Ijp7IlRHX0FEU19FTlZfRklMRSI6Ii9wYXRoL3RvL3RlbGVncmFtLWFkcy5lbnYifX0=) или `.cursor/mcp.json`:
+
+```json
+{"mcpServers": {"telegram-ads": {"command": "uvx", "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp", "telegram-ads-mcp"], "env": {"TG_ADS_ENV_FILE": "/path/to/telegram-ads.env"}}}}
+```
+
+Codex `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.telegram-ads]
+command = "uvx"
+args = ["--from", "git+https://github.com/zai-one/telegram-ads-mcp", "telegram-ads-mcp"]
+env = { TG_ADS_ENV_FILE = "/path/to/telegram-ads.env" }
+```
+
+Claude Desktop `claude_desktop_config.json`: тот же блок `mcpServers`, что и для Cursor. Skills для Codex и других хостов: скопируйте `skills/*` в `.agents/skills/`.
+
+Skills: `telegram-ads-launch-campaign`, `telegram-ads-review-account`, `telegram-ads-diagnose-ad` (их зеркала — prompts). Справка по запросу: `ads://guide/index` → `ads://guide/{topic}`.
+
+Примеры задач: «Сделай обзор кабинета Telegram Ads», «Запусти объявление для t.me/my_channel, CPM 0.5, бюджет 5 Gram», «Почему у объявления 35 нет показов?», «Поставь объявление 35 на паузу», «Покажи статистику объявления 35 за всё время».
+
 ## Tools
 
 | Блок | Tools |
