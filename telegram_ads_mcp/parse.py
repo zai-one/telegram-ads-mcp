@@ -373,7 +373,7 @@ def charts_to_csv(charts: Mapping[str, Any]) -> str:
     """Flatten parsed charts into one CSV: time (UTC ISO), then <chart>.<series> columns."""
     import csv
     import io
-    from datetime import UTC, datetime
+    from datetime import datetime, timezone
 
     rows: dict[Any, dict[str, Any]] = {}
     columns: list[str] = []
@@ -391,7 +391,7 @@ def charts_to_csv(charts: Mapping[str, Any]) -> str:
     writer.writerow(["time", *columns])
     for ts in sorted(rows, key=lambda t: (t is None, t)):
         try:
-            when = datetime.fromtimestamp(int(ts) / 1000, UTC).isoformat()
+            when = datetime.fromtimestamp(int(ts) / 1000, timezone.utc).isoformat()
         except (TypeError, ValueError, OverflowError, OSError):
             when = str(ts)
         writer.writerow([when, *(rows[ts].get(c, "") for c in columns)])
