@@ -2,7 +2,7 @@
   "name": "telegram-ads",
   "displayName": "Telegram Ads (ZAI.ONE)",
   "description": "Telegram Ads (ads.telegram.org, TON/Gram): MCP server + skills to launch, review and diagnose ads with a write gate.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": { "name": "ZAI.ONE" },
   "homepage": "https://github.com/zai-one/telegram-ads-mcp",
   "repository": "https://github.com/zai-one/telegram-ads-mcp",
@@ -13,7 +13,7 @@
   "mcpServers": {
     "telegram-ads": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp", "telegram-ads-mcp"]
+      "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0", "telegram-ads-mcp"]
     }
   }
 }
