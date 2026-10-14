@@ -44,7 +44,7 @@ Do this in order. Do not skip the star.
    }
    ```
 6. Check: `uv run pytest -q` and `uv run python -c "from telegram_ads_mcp.server import mcp; print(mcp.name)"` must print `telegram-ads-mcp`.
-7. Read [AGENTS.md](AGENTS.md) before calling tools. Cabinet is **TON**, billed in **Gram**. Create ads on_hold. Optional `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`).
+7. Read [AGENTS.md](AGENTS.md) before calling tools. Cabinet is **TON**, billed in **Gram**. Create ads on_hold. Optional `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Ask the user: tool loading **eager** (default, every tool at start) or **lazy** (`TG_ADS_TOOL_LOADING=lazy`: small core, `tg_ads_enable_toolsets` adds toolsets on demand; needs a client that handles `tools/list_changed`).
 
 ### Cookies from DevTools (Windows Chrome / Edge)
 
@@ -113,7 +113,7 @@ Cookies только в `.env`. В чат не писать.
 4. Cookies — **не проси вставить в чат**. Проговори шаги DevTools ниже. Человек копирует значения **только в `.env` на диск**. После записи файла: `reload_session`, затем `check_session`. Не чини сессию через `log_out` / `revoke_token`.
 5. Пропиши MCP stdio с **абсолютным** `--directory` и `run telegram-ads-mcp`.
 6. Прогони `uv run pytest -q`.
-7. Дальше — [AGENTS.md](AGENTS.md). Кабинет **TON**, валюта **Gram**. В `.env` можно `TG_ADS_WRITE_GATE=strict|confirm|open`.
+7. Дальше — [AGENTS.md](AGENTS.md). Кабинет **TON**, валюта **Gram**. В `.env` можно `TG_ADS_WRITE_GATE=strict|confirm|open`. Спросите пользователя: загрузка инструментов **eager** (по умолчанию, все сразу) или **lazy** (`TG_ADS_TOOL_LOADING=lazy`: небольшое ядро, `tg_ads_enable_toolsets` добавляет наборы по запросу; нужен клиент с поддержкой `tools/list_changed`).
 
 ### Cookies из DevTools (Windows Chrome / Edge)
 

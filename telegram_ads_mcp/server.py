@@ -15,7 +15,7 @@ from typing import Any, Literal
 from mcp.server import MCPServer
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 
-from telegram_ads_mcp import __version__, guide
+from telegram_ads_mcp import __version__, guide, lazy_loading
 from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError, stars_enabled
 from telegram_ads_mcp.descriptions import meta
 from telegram_ads_mcp.gate import attach_gate, gated
@@ -1255,6 +1255,10 @@ async def log_out(confirm: bool = False) -> dict[str, Any]:
     if err:
         return err
     return await client.call("logOut", {})
+
+
+# Optional lazy tool loading (TG_ADS_TOOL_LOADING=lazy): defer non-core tools until enabled.
+LAZY_LISTED = lazy_loading.install(mcp)
 
 
 # ── entry ────────────────────────────────────────────────────────────
