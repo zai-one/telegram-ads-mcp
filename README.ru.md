@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.5.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.5.0"></a>
+  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.6.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.6.0"></a>
   <a href="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml"><img src="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-555555" alt="MCP 2.x"></a>
@@ -69,7 +69,7 @@
 
 ## Поддержка и обновления
 
-- Проект активно поддерживает ZAI.ONE: текущая версия 0.5.0; изменения в [CHANGELOG.md](CHANGELOG.md) и [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
+- Проект активно поддерживает ZAI.ONE: текущая версия 0.6.0; изменения в [CHANGELOG.md](CHANGELOG.md) и [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
 - Встроенная проверка обновлений: попросите ассистента вызвать `check_update` (публичный GitHub API, без учётных данных, с кэшем; ничего не устанавливается автоматически; отключение: `TG_ADS_DISABLE_UPDATE_CHECK=1`).
 - Следует актуальным практикам MCP: аннотации инструментов (read-only / destructive), `instructions` сервера, промпты и ресурсы, структурированные ошибки с подсказками, секреты не попадают в ответы, бюджет токенов описаний проверяется в тестах.
 - CI прогоняет тесты на Linux и Windows для каждого pull request.
@@ -111,16 +111,16 @@ Cookies живут только в файле `.env` на диске (не в `e
 
 ```bash
 # Claude Code: только MCP
-claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0 telegram-ads-mcp
+claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp@v0.6.0 telegram-ads-mcp
 # Claude Code: плагин = MCP + skills (запуск / обзор / диагностика)
 /plugin marketplace add zai-one/telegram-ads-mcp
 /plugin install telegram-ads@telegram-ads-mcp
 ```
 
-Cursor: [установка в один клик](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcEB2MC41LjAiLCJ0ZWxlZ3JhbS1hZHMtbWNwIl0sImVudiI6eyJUR19BRFNfRU5WX0ZJTEUiOiIvcGF0aC90by90ZWxlZ3JhbS1hZHMuZW52In19) или `.cursor/mcp.json`:
+Cursor: [установка в один клик](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcEB2MC42LjAiLCJ0ZWxlZ3JhbS1hZHMtbWNwIl0sImVudiI6eyJUR19BRFNfRU5WX0ZJTEUiOiIvcGF0aC90by90ZWxlZ3JhbS1hZHMuZW52In19) или `.cursor/mcp.json`:
 
 ```json
-{"mcpServers": {"telegram-ads": {"command": "uvx", "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0", "telegram-ads-mcp"], "env": {"TG_ADS_ENV_FILE": "/path/to/telegram-ads.env"}}}}
+{"mcpServers": {"telegram-ads": {"command": "uvx", "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.6.0", "telegram-ads-mcp"], "env": {"TG_ADS_ENV_FILE": "/path/to/telegram-ads.env"}}}}
 ```
 
 Codex `~/.codex/config.toml`:
@@ -128,7 +128,7 @@ Codex `~/.codex/config.toml`:
 ```toml
 [mcp_servers.telegram-ads]
 command = "uvx"
-args = ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0", "telegram-ads-mcp"]
+args = ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.6.0", "telegram-ads-mcp"]
 env = { TG_ADS_ENV_FILE = "/path/to/telegram-ads.env" }
 ```
 

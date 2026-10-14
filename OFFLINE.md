@@ -6,7 +6,7 @@ Do remaining write checks on your machine against that **Gram** cabinet. Never p
 
 ## Live checks
 
-1. **`uvx --from git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0 telegram-ads-mcp`** — confirm the wheel starts (stdio). Prefer clone + `uv --directory ABS_PATH run telegram-ads-mcp` so `.env` is found. Claude/Cursor config as in INSTALL.md / `mcp.json.example` (no `STEL_*` in the MCP `env` block).
+1. **`uvx --from git+https://github.com/zai-one/telegram-ads-mcp@v0.6.0 telegram-ads-mcp`** — confirm the wheel starts (stdio). Prefer clone + `uv --directory ABS_PATH run telegram-ads-mcp` so `.env` is found. Claude/Cursor config as in INSTALL.md / `mcp.json.example` (no `STEL_*` in the MCP `env` block).
 2. **`get_account` balance** — Gram header widget (`js-header_owner_budget`). Must not report `cabinet: eur` on a Gram cabinet.
 3. **`get_ad`** — look at `source` (`getAd` / `html` / `getAdsList`).
 4. **`upload_media`** — 16:9 JPEG <5 MB and MP4 3–60s. Note which `/file/upload` `target` the platform accepts (`media` / `adMedia` / `ad_media` / `picture`); we should pin it.
