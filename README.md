@@ -47,7 +47,7 @@ Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `con
 
 ## Why this MCP
 
-- Optional lazy tool loading: `TG_ADS_TOOL_LOADING=lazy` starts with a small core plus `tg_ads_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈7262 tokens, lazy ≈1748 tokens (−76%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling.
+- Optional lazy tool loading: `TG_ADS_TOOL_LOADING=lazy` starts with a small core plus `tg_ads_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈7262 tokens, lazy ≈1748 tokens (−76%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling. Scope: enablement is process-wide (the MCP SDK MCPServer has no per-session tool visibility). Over stdio that is one client; in shared HTTP mode one client's enabled toolsets are listed for every client of that process (each call still passes its own gates), so use `eager` for shared HTTP.
 - Money safety: ads are created `on_hold`; spending actions go through a write gate shown by `get_account`.
 - Targeting references and `search_targets` so the agent never guesses IDs; 3 prompts, 3 resources incl. `ads://playbook`.
 - Session cookies stay in `.env`, never in chat.
