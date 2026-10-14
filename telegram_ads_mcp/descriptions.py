@@ -59,8 +59,8 @@ TOOLS: dict[str, tuple[str, str]] = {
     ),
     "edit_ad": (
         "Edit ad",
-        "Edit only the fields passed: copy, CPM, pause/activate, budget_action+budget_amount. Use for "
-        "changes; targeting is immutable, use `clone_ad`. Writes: activate/budget need confirm=true (gate).",
+        "Edit only the fields passed: copy, CPM, pause/activate, budget_action+budget_amount or budget_target. "
+        "budget_target is read back. Targeting is immutable, use `clone_ad`. Activate/budget need confirm=true.",
     ),
     "delete_ad": (
         "Delete ad",

@@ -12,6 +12,14 @@
   it, sends the difference, returns `budget_change` (current, target, action, amount); an unreadable current
   budget (`1,234`, currency signs) is refused with `budget_unknown` instead of guessed. Spend class under the gate.
 - `get_ad_stats(detail="csv")` exports all chart series as CSV.
+- Fix (money): money API calls (`incrAdBudget`, `decrAdBudget`, `transferFunds`, `transferWithdrawFunds`,
+  `sendAddFundsRequest`) are no longer auto-retried once the request may have reached the platform; a lost reply or 5xx
+  returns `outcome_unknown` (not retryable) instead of possibly applying the change twice. `edit_ad(budget_target=...)`
+  reads the budget uncached, holds a per-process lock across read/send/read-back and returns `budget_mismatch` when
+  the read-back is not the target (another writer, lost reply); a budget already at the target skips only the budget
+  change, so a pause or other field in the same call is still sent; the computed difference must fit the cabinet
+  rules. `manage_funds` add/transfer/withdraw amounts are checked against the cabinet rules (`invalid_amount`).
+  `edit_ad` with `budget_action` and `launch_ad` stop with `ok: false` when the budget call fails.
 - Instructions are generated from `telegram_ads_mcp/router.py`: one line per intent -> tool; skill;
   `ads://guide/<topic>`, with `ads://playbook` / `ads://guide/index` fallback.
 - Router eval (`tests/evals/routing_cases.json`, 23 RU/EN requests incl. paraphrases and negative cases) fails on any unreachable tool, skill or guide.

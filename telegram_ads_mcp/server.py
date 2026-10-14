@@ -12,6 +12,7 @@ from pathlib import Path
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
+import anyio
 from mcp.server import MCPServer
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 
@@ -96,32 +97,50 @@ async def _money_error(client: Any, target_type: str | None = None, **amounts: s
     return None
 
 
+async def _read_budget(client: Any, ad_id: str) -> tuple[Decimal | None, Any]:
+    """Fresh (uncached) `budget` of an ad as a Decimal, or (None, raw) when unreadable.
+
+    Read strictly: a number, or a plain decimal string. Anything else ("1,234", "€5", None) is
+    refused rather than guessed, because reading it too low would make an increase too large.
+    """
+    card = await client.get_ad(ad_id, fresh=True)
+    ad = card.get("ad") if isinstance(card, dict) and isinstance(card.get("ad"), dict) else {}
+    raw = ad.get("budget")
+    text = parse_amount(raw) if raw is not None else None
+    if text is None:
+        return None, raw
+    try:
+        return Decimal(text), text
+    except (InvalidOperation, ValueError):
+        return None, raw
+
+
 async def _budget_delta(
     client: Any, ad_id: str, target: str
 ) -> tuple[str | None, str | None, str | None]:
-    """(action, amount, current) that moves the ad's `budget` to `target`; (None, reason, None) when unknown.
-
-    The current value is read strictly: a number, or a plain decimal string. Anything else
-    ("1,234", "€5", None) is refused rather than guessed, because reading it too low would make
-    the increase larger than the operator asked for.
-    """
-    card = await client.get_ad(ad_id)
-    ad = card.get("ad") if isinstance(card, dict) and isinstance(card.get("ad"), dict) else {}
-    raw = ad.get("budget")
+    """(action, amount, current) that moves the ad's `budget` to `target`; (None, reason, None) when unknown."""
+    current, raw = await _read_budget(client, ad_id)
     unreadable = f"Current budget of ad {ad_id} is not readable ({raw!r}); use budget_action."
-    raw_text = parse_amount(raw) if raw is not None else None
     wanted_text = parse_amount(target)
-    if raw_text is None or wanted_text is None:
+    if current is None or wanted_text is None:
         return None, unreadable, None
-    try:
-        current = Decimal(raw_text)
-        wanted = Decimal(wanted_text)
-    except (InvalidOperation, ValueError):
-        return None, unreadable, None
-    delta = wanted - current
+    delta = Decimal(wanted_text) - current
     if delta == 0:
-        return "none", f"Budget already equals {target}; nothing sent.", raw_text
-    return ("increase" if delta > 0 else "decrease"), format(abs(delta).normalize(), "f"), raw_text
+        return "none", f"Budget already equals {target}; nothing sent.", raw
+    return ("increase" if delta > 0 else "decrease"), format(abs(delta).normalize(), "f"), raw
+
+
+def _call_failed(result: Any) -> bool:
+    return not isinstance(result, dict) or result.get("ok") is False or bool(result.get("error"))
+
+
+def _money_lock(client: Any) -> Any:
+    """Per-client lock for money read-modify-write (one process only; other writers are caught by readback)."""
+    lock = getattr(client, "money_lock", None)
+    if not isinstance(lock, anyio.Lock):
+        lock = anyio.Lock()
+        client.money_lock = lock
+    return lock
 
 
 async def _client_or_fail(require_supported: bool = True):
@@ -559,8 +578,10 @@ async def edit_ad(
     clear_media=True removes attached photo/video.
     budget_action + budget_amount changes total budget (increase resumes a depleted Stopped ad).
     budget_target sets the ad's `budget` (the value get_ad / get_ads report) to an absolute value: the
-    server reads it, sends the increase/decrease difference and returns `budget_change` (current,
-    target, action, amount); do not combine with budget_action.
+    server reads it fresh, sends the increase/decrease difference, reads it back and returns
+    `budget_change` (current, target, action, amount, after); a read-back other than the target
+    returns `budget_mismatch` (do not re-send). Equal budget skips only the budget change; the other
+    fields are still sent. Do not combine with budget_action.
     Targeting cannot be changed after creation — clone_ad instead.
     confirm: required to activate or change budget unless TG_ADS_WRITE_GATE=open.
     """
@@ -591,31 +612,21 @@ async def edit_ad(
     )
     if money_err:
         return money_err
-    if budget_target is not None:
-        if budget_action or budget_amount:
-            return attach_gate({"ok": False, "code": "invalid_args", "retryable": False,
-                                "error": "Pass budget_target or budget_action+budget_amount, not both."})
-        budget_action, budget_amount, budget_current = await _budget_delta(client, ad_id, budget_target)
-        if budget_action == "none":
-            return attach_gate({"ok": True, "code": "no_change", "budget_change": None, "note": budget_amount})
-        if budget_action is None:
-            return attach_gate({"ok": False, "code": "budget_unknown", "retryable": False,
-                                "error": budget_amount or "Current budget unknown; use budget_action."})
+    if budget_target is not None and (budget_action or budget_amount):
+        return attach_gate({"ok": False, "code": "invalid_args", "retryable": False,
+                            "error": "Pass budget_target or budget_action+budget_amount, not both."})
     results: dict[str, Any] = {}
-    if budget_target is not None:
-        # Report the computed difference so the spend is visible, not only the absolute target.
-        results["budget_change"] = {
-            "current": budget_current,
-            "target": budget_target,
-            "action": budget_action,
-            "amount": budget_amount,
-        }
-    if budget_action and budget_amount:
-        method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"
-        results["budget"] = await client.call(
-            method,
-            {"owner_id": client.owner_id, "ad_id": ad_id, "amount": budget_amount},
-        )
+    no_change: dict[str, Any] | None = None
+    if budget_target is not None or (budget_action and budget_amount):
+        # Read, send and read back under one lock, so two calls in this process cannot both
+        # add the same difference. Money calls are never auto-retried (see client.MONEY_METHODS).
+        async with _money_lock(client):
+            failed = await _apply_budget(client, ad_id, budget_target, budget_action, budget_amount, results)
+        if failed is not None:
+            if failed.get("code") == "no_change":
+                no_change = failed
+            else:
+                return failed
     params: dict[str, Any] = {
         "owner_id": client.owner_id,
         "ad_id": ad_id,
@@ -654,10 +665,66 @@ async def edit_ad(
 
     if strip_empty(editable, keep=keep) or keep:
         results["edit"] = await client.call("editAd", params, keep=keep or None)
+    elif no_change is not None:
+        return no_change
     if not results:
         return {"ok": False, "error": "No fields to update."}
+    if no_change is not None:
+        results["budget_change"] = None
+        results["budget_note"] = no_change["note"]
     results["ok"] = True
     return results
+
+
+async def _apply_budget(
+    client: Any,
+    ad_id: str,
+    budget_target: str | None,
+    budget_action: str | None,
+    budget_amount: str | None,
+    results: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Send the budget change into `results`; return a payload that stops edit_ad, else None.
+
+    A returned `no_change` payload only skips the budget; the other edit_ad fields still go out.
+    """
+    if budget_target is not None:
+        budget_action, budget_amount, current = await _budget_delta(client, ad_id, budget_target)
+        if budget_action == "none":
+            return attach_gate({"ok": True, "code": "no_change", "budget_change": None, "note": budget_amount})
+        if budget_action is None:
+            return attach_gate({"ok": False, "code": "budget_unknown", "retryable": False,
+                                "error": budget_amount or "Current budget unknown; use budget_action."})
+        change = {"current": current, "target": budget_target, "action": budget_action, "amount": budget_amount}
+        # The computed difference is what gets sent: it must fit the cabinet rules too
+        # (e.g. current 0.123456 -> target 1 would send 0.876544).
+        delta_err = await _money_error(client, budget_difference=budget_amount)
+        if delta_err:
+            delta_err["budget_change"] = change
+            return delta_err
+        # Report the computed difference so the spend is visible, not only the absolute target.
+        results["budget_change"] = change
+    method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"
+    sent = await client.call(method, {"owner_id": client.owner_id, "ad_id": ad_id, "amount": budget_amount})
+    results["budget"] = sent
+    if budget_target is None:
+        if _call_failed(sent):
+            return attach_gate({"ok": False, "code": (sent.get("code") if isinstance(sent, dict) else None)
+                                or "error", "retryable": False, "error": "Budget change failed; other fields not sent.",
+                                "edit_skipped": True, **results})
+        return None
+    # Read back: a stale read, another writer (cabinet UI, another process) or a lost reply would
+    # otherwise leave a wrong budget behind a success. Only the target value counts as success.
+    after, after_raw = await _read_budget(client, ad_id)
+    results["budget_change"]["after"] = after_raw
+    if after is None or after != Decimal(parse_amount(budget_target) or "0"):
+        return attach_gate({
+            "ok": False, "code": "budget_mismatch", "retryable": False, "edit_skipped": True,
+            "error": f"Budget of ad {ad_id} reads {after_raw!r} after the change, not {budget_target}.",
+            "hint": "Do not re-send. Check get_ad, then correct with budget_action if needed.",
+            **results,
+        })
+    return None
 
 
 @mcp.tool(annotations=DEST, **meta("delete_ad"))
@@ -839,6 +906,11 @@ async def launch_ad(
             "incrAdBudget",
             {"owner_id": client.owner_id, "ad_id": str(ad_id), "amount": budget},
         )
+        if _call_failed(steps["budget"]):
+            # Do not report a launch as ok (or send it to review) when its budget did not land.
+            return {"ok": False, "ad_id": str(ad_id), "error": "Budget step failed; review not sent.",
+                    "code": steps["budget"].get("code") if isinstance(steps["budget"], dict) else "error",
+                    "retryable": False, "steps": steps}
     if not skip_review:
         steps["review"] = await client.call(
             "sendTargetToReview",
@@ -1195,7 +1267,7 @@ async def manage_funds(
     additional_comment: str = "",
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Funds. Amount is a Gram (or EUR) string.
+    """Funds. Amount is a string in the cabinet unit, checked against its rules (invalid_amount).
 
     list/search = lookup, not gated.
     add = top-up *request* (not instant credit).
@@ -1213,6 +1285,14 @@ async def manage_funds(
     client, err = await _client_or_fail()
     if err:
         return err
+    if action in {"add", "transfer", "withdraw"}:
+        # Same cabinet amount rules as the ad money fields: never send "1.5" Stars or "1e3".
+        if amount in (None, ""):
+            return attach_gate({"ok": False, "code": "invalid_amount", "retryable": False,
+                                "error": f"amount is required for action={action}"})
+        money_err = await _money_error(client, amount=amount)
+        if money_err:
+            return money_err
     cabinet = await client.detect_cabinet()
     currency = cabinet.get("currency")
     if action == "add":
