@@ -54,7 +54,9 @@ def test_map_status() -> None:
 def test_detect_stars_and_eur_and_ton() -> None:
     stars = detect_cabinet('"currency":"XTR"', "")
     assert stars["cabinet"] == "stars"
-    assert stars["supported"] is False
+    assert stars["supported"] is True
+    assert stars["money"]["integer_only"] is True
+    assert stars["supports_user_targeting"] is False
     gram_account = (FIXTURES / "gram_account.html").read_text(encoding="utf-8")
     gram_new = (FIXTURES / "gram_new_ad.html").read_text(encoding="utf-8")
     gram = detect_cabinet(gram_account, gram_new)
@@ -196,3 +198,54 @@ def test_redact_secrets() -> None:
     assert "alsohash" not in out
     assert "abcdef123456" not in out
     assert "***" in out
+
+
+def test_check_amounts_per_cabinet() -> None:
+    from telegram_ads_mcp.parse import check_amounts
+
+    stars = {"cabinet": "stars"}
+    assert check_amounts(stars, cpm="15", budget="300") is None
+    assert "whole numbers" in (check_amounts(stars, cpm="1.5") or "")
+    eur = detect_cabinet((FIXTURES / "eur_account.html").read_text(encoding="utf-8"), "")
+    assert eur["money"]["unit"] == "EUR"
+    assert check_amounts(eur, cpm="0.25", budget="20") is None
+    assert "decimals" in (check_amounts(eur, cpm="0.255") or "")
+    assert "not a number" in (check_amounts({"cabinet": "ton"}, budget="ten") or "")
+    assert check_amounts({"cabinet": "ton"}, budget="-1") == "budget must be >= 0"
+    assert "not a number" in (check_amounts({"cabinet": "eur"}, cpm="nan") or "")
+
+
+def test_check_amounts_accepts_only_plain_decimals() -> None:
+    """The amount string reaches incrAdBudget / createAd as given, so a form that float() accepts but the
+    platform may read differently ("1,5", "1e3", "1_000") must be refused, not passed through."""
+    from telegram_ads_mcp.parse import check_amounts
+
+    ton = {"cabinet": "ton"}
+    for raw in ("1,5", "1,234", "1e3", "1_000", "+1", "inf", "-inf", "0x10", "1.", ".5", "1.2.3", "１"):
+        assert check_amounts(ton, budget=raw), raw
+    assert "decimal separator" in (check_amounts(ton, budget="1,5") or "")
+    assert check_amounts(ton, budget="-0.5") == "budget must be >= 0"
+    for raw in ("0", "1", "12.5", "12.50", " 3 ", "12.500"):
+        assert check_amounts(ton, budget=raw) is None, raw
+    assert check_amounts({"cabinet": "stars"}, budget="15.0") is None
+    assert check_amounts({"cabinet": "stars"}, budget="15.01")
+
+
+def test_update_hint_never_breaks_budget() -> None:
+    from telegram_ads_mcp.router import instructions
+
+    assert len(instructions("x" * 500)) <= 1200
+    assert instructions("short hint").endswith("short hint")
+
+
+def test_charts_to_csv_merges_series() -> None:
+    from telegram_ads_mcp.parse import charts_to_csv
+
+    charts = {
+        "views": {"timestamps": [0, 86_400_000], "series": {"Views": [10, 20]}},
+        "budget": {"timestamps": [0], "series": {"Spent": [1.5]}},
+    }
+    lines = charts_to_csv(charts).splitlines()
+    assert lines[0] == "time,views.Views,budget.Spent"
+    assert lines[1] == "1970-01-01T00:00:00+00:00,10,1.5"
+    assert lines[2].endswith(",20,")

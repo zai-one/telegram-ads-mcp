@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Optional lazy tool loading (`TG_ADS_TOOL_LOADING=eager|lazy`, default `eager` = unchanged): lazy lists a small core plus `tg_ads_enable_toolsets` (toolsets with one-line description and token cost); enabling registers the tools at runtime and sends `notifications/tools/list_changed`. `TG_ADS_WRITE_GATE` confirm/confirm_hash gates and Stars opt-in still apply; INSTALL.md setup asks eager vs lazy, `.env.example` documents it. Toolsets: meta (always), ads_read, targeting, ads_write, audiences_events, account_admin. `tools.listChanged` is declared for handshake-era clients; 2026-07-28 clients get the event on `subscriptions/listen`. Startup tokens (tools/list + instructions, ≈chars/4): eager ≈7262, lazy ≈1748. Scope: enablement is process-wide (the MCP SDK MCPServer has no per-session tool visibility). Over stdio that is one client; in shared HTTP mode one client's enabled toolsets are listed for every client of that process (each call still passes its own gates), so use `eager` for shared HTTP. README lazy section lists verified `tools/list_changed` client support with sources.
+- EUR cabinets are supported; Stars cabinets are opt-in with `TG_ADS_STARS=on` (fixture-tested only, refused by default as before). `get_account` returns `money`
+  (unit, decimals, integer_only); `supported` is false on a Stars cabinet until the opt-in. `create_ad` / `edit_ad` /
+  `launch_ad` (including its spend `budget`) reject amounts that do not fit the cabinet before any platform call
+  (`invalid_amount`: plain decimals only, no `1,5` / `1e3` / `1_000`, which would otherwise be sent as typed) and
+  user targeting on Stars (`unsupported_in_cabinet`).
+- `edit_ad(budget_target=...)` sets the ad's `budget` (as `get_ad` / `get_ads` report it) to an absolute value: reads
+  it, sends the difference, returns `budget_change` (current, target, action, amount); an unreadable current
+  budget (`1,234`, currency signs) is refused with `budget_unknown` instead of guessed. Spend class under the gate.
+- `get_ad_stats(detail="csv")` exports all chart series as CSV.
+- Instructions are generated from `telegram_ads_mcp/router.py`: one line per intent -> tool; skill;
+  `ads://guide/<topic>`, with `ads://playbook` / `ads://guide/index` fallback.
+- Router eval (`tests/evals/routing_cases.json`, 23 RU/EN requests incl. paraphrases and negative cases) fails on any unreachable tool, skill or guide.
+
 ## 0.5.0 — 2026-10-13
 
 Operator-facing: agent layer per the ZAI.ONE MCP standard (router instructions, skills, guides, plugins), compact `get_ads` / `get_ad_stats` by default, working-directory `.env` limited to `STEL_*` cookies, LicenseRef-ZAI-ONE 2.0.

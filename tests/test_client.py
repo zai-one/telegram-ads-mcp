@@ -68,7 +68,8 @@ async def test_authenticate_and_get_account() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stars_refused() -> None:
+async def test_stars_opt_in(monkeypatch) -> None:
+    monkeypatch.delenv("TG_ADS_STARS", raising=False)
     def stars_router(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/account":
             return httpx.Response(200, text=STARS_ACCOUNT)
@@ -88,8 +89,12 @@ async def test_stars_refused() -> None:
     await client.authenticate()
     cabinet = await client.detect_cabinet()
     assert cabinet["cabinet"] == "stars"
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # default: refused (paid path only fixture-tested)
         await client.require_supported_cabinet()
+    assert (await client.get_account())["supported"] is False  # the card must not claim otherwise
+    monkeypatch.setenv("TG_ADS_STARS", "on")
+    assert (await client.require_supported_cabinet())["money"]["unit"].startswith("Telegram Stars")
+    assert (await client.get_account())["supported"] is True
     await client.aclose()
 
 

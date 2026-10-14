@@ -48,6 +48,11 @@ class ConfigError(Exception):
     """Required environment is missing."""
 
 
+def stars_enabled() -> bool:
+    """Stars cabinets are opt-in (TG_ADS_STARS=on): amounts are only fixture-tested, not live-verified."""
+    return os.environ.get("TG_ADS_STARS", "off").strip().lower() in {"on", "1", "true", "yes"}
+
+
 class StarsCabinetError(Exception):
     """Active cabinet is Stars — this server refuses to operate on it."""
 
@@ -240,10 +245,10 @@ class TelegramAdsClient:
 
     async def require_supported_cabinet(self) -> dict[str, Any]:
         info = await self.detect_cabinet()
-        if info.get("cabinet") == "stars":
+        if info.get("cabinet") == "stars" and not stars_enabled():
             raise StarsCabinetError(
-                "Stars cabinet detected. This server only supports TON/Gram (primary) and EUR cabinets. "
-                "Call list_accounts / select_account to switch away from Stars."
+                "Stars cabinet detected; Stars support is opt-in (TG_ADS_STARS=on). Set it, or call "
+                "list_accounts / select_account to switch to a Gram (TON) or EUR cabinet."
             )
         return info
 
@@ -279,7 +284,9 @@ class TelegramAdsClient:
             "cabinet": cabinet["cabinet"],
             "currency": cabinet["currency"],
             "supports_user_targeting": cabinet["supports_user_targeting"],
-            "supported": cabinet["supported"],
+            # Stars is detected and described, but only usable with the opt-in.
+            "supported": bool(cabinet["supported"]) and (cabinet["cabinet"] != "stars" or stars_enabled()),
+            "money": cabinet.get("money"),
             "balance": balance,
         }
 

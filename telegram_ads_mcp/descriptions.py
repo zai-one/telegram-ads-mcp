@@ -30,7 +30,7 @@ TOOLS: dict[str, tuple[str, str]] = {
     "list_accounts": (
         "List cabinets",
         "List ad cabinets for this Telegram login. Use to find owner_id before `select_account`; "
-        "works on a Stars cabinet so you can switch away. Returns accounts.",
+        "works on any cabinet (TON, EUR, Stars). Returns accounts.",
     ),
     "select_account": (
         "Select cabinet",
@@ -40,7 +40,7 @@ TOOLS: dict[str, tuple[str, str]] = {
     "get_account": (
         "Get cabinet",
         "Read the current cabinet card. Use before any write to check currency and gate; for the ad list "
-        "use `get_ads`. Returns owner_id, cabinet, currency (GRAM/EUR), balance, write_gate.",
+        "use `get_ads`. Returns owner_id, cabinet, currency (GRAM/EUR/XTR), money, balance, write_gate.",
     ),
     "get_ads": (
         "List ads",
