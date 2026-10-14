@@ -11,7 +11,7 @@ Three cabinet types; `get_account` returns `cabinet`, `currency` and `money` (un
   numbers only for `cpm`, `budget`, `daily_budget`, `budget_amount`; no `target_type=users`
   (`code: "unsupported_in_cabinet"`). Opt-in: enabled only when the operator sets `TG_ADS_STARS=on`; otherwise
   (`code: "stars_cabinet"` -> `list_accounts` / `select_account`).
-A wrong amount returns `code: "invalid_amount"` before any API call. Never convert between currencies;
+A wrong amount returns `code: "invalid_amount"` before any API call (also `manage_funds` amounts and the difference `budget_target` would send). Never convert between currencies;
 quote amounts in the cabinet's own unit.
 
 ## Auth
@@ -45,6 +45,8 @@ Failures return `ok: false`, `error` (text), `code`, `retryable`, `hint`, `docs`
 | `stars_cabinet` | Stars cabinet active | `list_accounts` → `select_account` |
 | `write_gated` | gate blocked a write (`sent: false`) | show `would_send`, re-call with `confirm=true` after yes |
 | `access_denied` | audience/event not allowed | `hint: skip`, do not retry |
+| `outcome_unknown` | money call got no clear reply; not re-sent | `get_ad` / `get_account` first; never re-send blindly |
+| `budget_mismatch` | `budget_target` read-back is not the target | do not re-send; `get_ad`, fix with `budget_action` |
 | `error` | unexpected | retry once, then offer an Issue |
 
 ## Updates
@@ -91,7 +93,7 @@ No separate CSV / export tool (`get_ad_stats_csv` does not exist; use `get_ad_st
 
 Prefer `launch_ad`. It does **not** activate. It **does** add budget (default `"1"` Gram) and `send_target_to_review`. Name cpm + budget + `target_type` first. If `steps.validate` fails, stop. Optional targeting on `launch_ad`: `topics`, `exclude_topics` / `exclude_channels`, `locations`, user excludes. Do **not** send `langs` together with specific `channels` (platform Target invalid) — the tool drops `langs` in that case. Full field set remains on `create_ad`.
 
-Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`), or `budget_target` to set the ad's `budget` (as `get_ad`/`get_ads` report it) to an absolute value (server reads it, sends the difference, returns `budget_change`). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
+Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`), or `budget_target` to set the ad's `budget` (as `get_ad`/`get_ads` report it) to an absolute value (server reads it uncached, sends the difference, reads it back: `budget_change.after`; other than the target → `budget_mismatch`). Serialized per server process only; a parallel change in the cabinet UI shows up as `budget_mismatch`. Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
 
 ## Danger
 

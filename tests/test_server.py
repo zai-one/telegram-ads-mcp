@@ -300,10 +300,34 @@ async def test_stars_cabinet_whole_numbers_and_no_users() -> None:
     assert method == "createAd" and params["cpm"] == "2"
 
 
+def _budget_client(start: str, *, cabinet: AsyncMock | None = None, read_delay: float = 0.0) -> AsyncMock:
+    """Fake cabinet whose get_ad reports a live budget that incr/decrAdBudget really change."""
+    import anyio
+    from decimal import Decimal
+
+    fake = cabinet or _ton_gram_client()
+    state = {"budget": Decimal(start)}
+
+    async def get_ad(ad_id, **_kw):
+        value = state["budget"]
+        await anyio.sleep(read_delay)
+        return {"ok": True, "ad": {"budget": format(value.normalize(), "f")}}
+
+    async def call(method, params=None, **_kw):
+        if method in ("incrAdBudget", "decrAdBudget"):
+            sign = 1 if method == "incrAdBudget" else -1
+            state["budget"] += sign * Decimal(params["amount"])
+        return {"ok": True, "ad_id": "99"}
+
+    fake.get_ad.side_effect = get_ad
+    fake.call.side_effect = call
+    fake.state = state
+    return fake
+
+
 @pytest.mark.asyncio
 async def test_edit_ad_budget_target_sends_difference() -> None:
-    fake = _ton_gram_client()
-    fake.get_ad.return_value = {"ok": True, "ad": {"budget": "5.5"}}
+    fake = _budget_client("5.5")
     with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
         "os.environ", {"TG_ADS_WRITE_GATE": "open"}
     ):
@@ -312,13 +336,15 @@ async def test_edit_ad_budget_target_sends_difference() -> None:
         fake.call.reset_mock()
         down = await server_mod.edit_ad(ad_id="7", budget_target="5")
         second = fake.call.await_args_list[0].args
-        same = await server_mod.edit_ad(ad_id="7", budget_target="5.5")
+        same = await server_mod.edit_ad(ad_id="7", budget_target="5")
         both = await server_mod.edit_ad(ad_id="7", budget_target="9", budget_action="increase", budget_amount="1")
     assert first[0] == "incrAdBudget" and first[1]["amount"] == "2.5" and up["ok"] is not False
-    assert second[0] == "decrAdBudget" and second[1]["amount"] == "0.5" and down["ok"] is not False
-    assert up["budget_change"] == {"current": "5.5", "target": "8", "action": "increase", "amount": "2.5"}
+    assert second[0] == "decrAdBudget" and second[1]["amount"] == "3" and down["ok"] is not False
+    assert up["budget_change"] == {"current": "5.5", "target": "8", "action": "increase", "amount": "2.5",
+                                   "after": "8"}
     assert down["budget_change"]["action"] == "decrease"
     assert same["code"] == "no_change" and both["code"] == "invalid_args"
+    fake.get_ad.side_effect = None
     fake.get_ad.return_value = {"ok": True, "ad": {"budget": "n/a"}}
     with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
         "os.environ", {"TG_ADS_WRITE_GATE": "open"}
@@ -354,8 +380,7 @@ async def test_launch_ad_checks_spend_budget_before_any_call() -> None:
 @pytest.mark.asyncio
 async def test_budget_target_is_spend_gated() -> None:
     """budget_target moves money: strict and confirm must stop it without confirm=true, and touch nothing."""
-    fake = _ton_gram_client()
-    fake.get_ad.return_value = {"ok": True, "ad": {"budget": "1"}}
+    fake = _budget_client("1")
     for gate in ("strict", "confirm"):
         with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
             "os.environ", {"TG_ADS_WRITE_GATE": gate}
@@ -385,10 +410,131 @@ async def test_budget_target_refuses_ambiguous_current_budget() -> None:
             out = await server_mod.edit_ad(ad_id="7", budget_target="1500")
         assert out["code"] == "budget_unknown", (current, out)
         fake.call.assert_not_awaited()
-    fake = _ton_gram_client()
-    fake.get_ad.return_value = {"ok": True, "ad": {"budget": 4}}
+    fake = _budget_client("4")
+    reads = iter([4, 5])
+
+    async def get_ad(ad_id, **_kw):
+        return {"ok": True, "ad": {"budget": next(reads)}}  # ints, as some payloads return them
+
+    fake.get_ad.side_effect = get_ad
     with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
         "os.environ", {"TG_ADS_WRITE_GATE": "open"}
     ):
         out = await server_mod.edit_ad(ad_id="7", budget_target="5")
-    assert out["budget_change"] == {"current": "4", "target": "5", "action": "increase", "amount": "1"}
+    assert out["budget_change"] == {"current": "4", "target": "5", "action": "increase", "amount": "1",
+                                    "after": "5"}
+
+
+@pytest.mark.asyncio
+async def test_budget_target_concurrent_calls_do_not_stack() -> None:
+    """Two budget_target=10 calls from 5 must end at 10, not 15 (read-modify-write race)."""
+    import anyio
+
+    fake = _budget_client("5", read_delay=0.01)
+    outs: list[dict] = []
+
+    async def one() -> None:
+        outs.append(await server_mod.edit_ad(ad_id="7", budget_target="10"))
+
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+        "os.environ", {"TG_ADS_WRITE_GATE": "open"}
+    ):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(one)
+            tg.start_soon(one)
+    assert str(fake.state["budget"]) == "10"
+    assert sorted(o.get("code", "sent") for o in outs) == ["no_change", "sent"]
+    assert [c.args[0] for c in fake.call.await_args_list] == ["incrAdBudget"]
+
+
+@pytest.mark.asyncio
+async def test_budget_target_reads_fresh_and_flags_wrong_result() -> None:
+    """The current budget is read uncached; if the read-back is not the target, say so (no false success)."""
+    fake = _budget_client("5")
+    real_call = fake.call.side_effect
+
+    async def other_writer_too(method, params=None, **kw):
+        out = await real_call(method, params, **kw)
+        if method == "incrAdBudget":
+            fake.state["budget"] += 3  # someone else (cabinet UI, another process) added 3 meanwhile
+        return out
+
+    fake.call.side_effect = other_writer_too
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+        "os.environ", {"TG_ADS_WRITE_GATE": "open"}
+    ):
+        out = await server_mod.edit_ad(ad_id="7", budget_target="10", title="t")
+    assert all(c.kwargs.get("fresh") is True for c in fake.get_ad.await_args_list)
+    assert out["ok"] is False and out["code"] == "budget_mismatch" and out["retryable"] is False
+    assert out["budget_change"]["after"] == "13" and out["edit_skipped"] is True
+    assert "editAd" not in [c.args[0] for c in fake.call.await_args_list]
+
+
+@pytest.mark.asyncio
+async def test_budget_target_lost_reply_is_not_success() -> None:
+    """outcome_unknown from the money call: read-back decides; budget unchanged -> not ok, nothing re-sent."""
+    fake = _budget_client("5")
+    lost = {"ok": False, "code": "outcome_unknown", "retryable": False}
+
+    async def call(method, params=None, **_kw):
+        return lost
+
+    fake.call.side_effect = call
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+        "os.environ", {"TG_ADS_WRITE_GATE": "open"}
+    ):
+        out = await server_mod.edit_ad(ad_id="7", budget_target="10")
+        plain = await server_mod.edit_ad(ad_id="7", budget_action="increase", budget_amount="1", active="active")
+    assert out["ok"] is False and out["code"] == "budget_mismatch" and out["budget"] == lost
+    assert plain["ok"] is False and plain["code"] == "outcome_unknown" and plain["edit_skipped"] is True
+    assert [c.args[0] for c in fake.call.await_args_list] == ["incrAdBudget", "incrAdBudget"]
+
+
+@pytest.mark.asyncio
+async def test_budget_target_equal_still_sends_other_fields() -> None:
+    """budget already at target must skip only the budget, not the pause sent in the same call."""
+    fake = _budget_client("5")
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+        "os.environ", {"TG_ADS_WRITE_GATE": "open"}
+    ):
+        out = await server_mod.edit_ad(ad_id="7", budget_target="5", active="on_hold", confirm=True)
+    calls = [c.args for c in fake.call.await_args_list]
+    assert [c[0] for c in calls] == ["editAd"]
+    assert calls[0][1]["active"] == "0"
+    assert out["ok"] is True and out["budget_change"] is None and "edit" in out
+
+
+@pytest.mark.asyncio
+async def test_budget_target_difference_must_fit_cabinet() -> None:
+    """current 0.123456 -> target 1 would send 0.876544: refuse before any money call."""
+    fake = _budget_client("0.123456")
+    stars = _budget_client("1.5", cabinet=_stars_client())
+    for client, target in ((fake, "1"), (stars, "3")):
+        with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=client)), patch.dict(
+            "os.environ", {"TG_ADS_WRITE_GATE": "open", "TG_ADS_STARS": "on"}
+        ):
+            out = await server_mod.edit_ad(ad_id="7", budget_target=target)
+        assert out["code"] == "invalid_amount", out
+        client.call.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_manage_funds_checks_cabinet_amount_rules() -> None:
+    """transfer/withdraw/add move money: "1.5" Stars, "1e3", "1,5" or a missing amount never reach the API."""
+    cases = [(_stars_client(), "1.5"), (_ton_gram_client(), "1e3"), (_ton_gram_client(), "1,5"),
+             (_ton_gram_client(), "2.555"), (_ton_gram_client(), None)]
+    for fake, amount in cases:
+        for action in ("transfer", "withdraw", "add"):
+            with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+                "os.environ", {"TG_ADS_WRITE_GATE": "open", "TG_ADS_STARS": "on"}
+            ):
+                out = await server_mod.manage_funds(action=action, amount=amount, account_id="acc")
+            assert out["code"] == "invalid_amount", (action, amount, out)
+        fake.call.assert_not_awaited()
+    fake = _stars_client()
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+        "os.environ", {"TG_ADS_WRITE_GATE": "open", "TG_ADS_STARS": "on"}
+    ):
+        ok = await server_mod.manage_funds(action="transfer", amount="15", account_id="acc")
+    assert ok["ok"] is True
+    assert fake.call.await_args.args == ("transferFunds", {"owner_id": "own1", "account_id": "acc", "amount": "15"})
