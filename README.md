@@ -47,11 +47,25 @@ Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `con
 
 ## Why this MCP
 
-- Optional lazy tool loading: `TG_ADS_TOOL_LOADING=lazy` starts with a small core plus `tg_ads_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈7262 tokens, lazy ≈1748 tokens (−76%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling. Scope: enablement is process-wide (the MCP SDK MCPServer has no per-session tool visibility). Over stdio that is one client; in shared HTTP mode one client's enabled toolsets are listed for every client of that process (each call still passes its own gates), so use `eager` for shared HTTP.
+- Optional lazy tool loading: set `TG_ADS_TOOL_LOADING=lazy` (or choose it in the setup wizard) to start with a small core and enable toolsets on demand; see [Lazy tool loading](#lazy-tool-loading).
 - Money safety: ads are created `on_hold`; spending actions go through a write gate shown by `get_account`.
 - Targeting references and `search_targets` so the agent never guesses IDs; 3 prompts, 3 resources incl. `ads://playbook`.
 - Session cookies stay in `.env`, never in chat.
 - Other Telegram Ads MCP servers on GitHub: [Free-cat/telegram_ads_mcp](https://github.com/Free-cat/telegram_ads_mcp) (14 tools), [reputasyon/telegram-ads-mcp](https://github.com/reputasyon/telegram-ads-mcp) (8 tools).
+
+## Lazy tool loading
+
+Optional lazy tool loading: `TG_ADS_TOOL_LOADING=lazy` starts with a small core plus `tg_ads_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈7262 tokens, lazy ≈1748 tokens (−76%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling. Scope: enablement is process-wide (the MCP SDK MCPServer has no per-session tool visibility). Over stdio that is one client; in shared HTTP mode one client's enabled toolsets are listed for every client of that process (each call still passes its own gates), so use `eager` for shared HTTP.
+
+Clients and `notifications/tools/list_changed` (verified against official docs, changelogs or maintainer statements, 2026-10):
+
+| Client | `tools/list_changed` | Source |
+|---|---|---|
+| Claude Code | Supported (interactive: tools, prompts, resources; `-p`/Agent SDK: tools) | [docs: Dynamic tool updates](https://code.claude.com/docs/en/mcp) |
+| VS Code (GitHub Copilot) | Supported (dynamic tool discovery); new tools may reach the agent only on the next turn | [docs](https://code.visualstudio.com/api/extension-guides/ai/mcp), [#303012](https://github.com/microsoft/vscode/issues/303012) |
+| Gemini CLI | Supported (refreshes the tool registry) | [PR #14375](https://github.com/google-gemini/gemini-cli/pull/14375), [PR #21050](https://github.com/google-gemini/gemini-cli/pull/21050) |
+| Cursor | Unreliable: staff confirm a regression in 3.12.x; restart Cursor after enabling | [forum](https://forum.cursor.com/t/mcp-server-regression-does-not-reload-tools-disconnect-does-nothing-ignores-mcp-json-changes-etc/166216) |
+| Claude Desktop, Windsurf, Codex CLI, Cline, Zed, Continue | Unverified: no official statement found; use `eager` or reconnect after enabling | — |
 
 ## Maintained and up to date
 
