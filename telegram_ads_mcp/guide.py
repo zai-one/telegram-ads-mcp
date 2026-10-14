@@ -1,6 +1,6 @@
-"""Progressive disclosure: split the playbook (AGENTS.md) into topic guides.
+"""Progressive disclosure: split PLAYBOOK.md into topic guides.
 
-One source of truth: AGENTS.md. ``ads://guide/{topic}`` serves one section;
+One source of truth: packaged PLAYBOOK.md. ``ads://guide/{topic}`` serves one section;
 ``skills/*/references/*.md`` are generated copies (``scripts/sync_skills.py``),
 kept in sync by ``tests/test_token_budget.py``.
 """
@@ -9,12 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-PLAYBOOK_CANDIDATES = (
-    Path(__file__).resolve().parent / "AGENTS.md",
-    Path(__file__).resolve().parent.parent / "AGENTS.md",
-)
+PLAYBOOK_PATH = Path(__file__).resolve().parent / "PLAYBOOK.md"
 
-# topic -> heading prefix in AGENTS.md
+# topic -> heading prefix in PLAYBOOK.md
 TOPICS: dict[str, str] = {
     "currency": "Currency",
     "auth": "Auth",
@@ -32,10 +29,9 @@ TOPICS: dict[str, str] = {
 
 
 def playbook() -> str:
-    for path in PLAYBOOK_CANDIDATES:
-        if path.is_file():
-            return path.read_text(encoding="utf-8")
-    return "AGENTS.md is missing from the install."
+    if PLAYBOOK_PATH.is_file():
+        return PLAYBOOK_PATH.read_text(encoding="utf-8")
+    return "PLAYBOOK.md is missing from the install."
 
 
 def sections(text: str | None = None) -> dict[str, str]:

@@ -10,7 +10,9 @@ REQUIRED = {"get_account", "get_ad_stats", "launch_ad", "reload_session", "previ
 
 
 def test_required_docs_exist() -> None:
-    for name in ("README.md", "README.ru.md", "INSTALL.md", "AGENTS.md", "CLAUDE.md"):
+    for name in (
+        "README.md", "README.ru.md", "INSTALL.md", "AGENTS.md", "CLAUDE.md", "telegram_ads_mcp/PLAYBOOK.md"
+    ):
         assert (ROOT / name).is_file(), name
 
 
@@ -98,7 +100,7 @@ def test_gitignore_local_notes_not_client_playbook() -> None:
         if not s or s.startswith("#") or s.startswith("!"):
             continue
         assert s not in {"AGENTS.md", "/AGENTS.md", "**/AGENTS.md"}
-        assert "telegram_ads_mcp/AGENTS.md" not in s
+        assert "telegram_ads_mcp/PLAYBOOK.md" not in s
         assert "check_security.py" not in s
         assert not s.startswith("tests/")
     example = ROOT / "AGENTS.local.md.example"
@@ -109,8 +111,8 @@ def test_gitignore_local_notes_not_client_playbook() -> None:
     assert len(stub.splitlines()) <= 8
 
 
-def test_agents_hygiene_and_gram() -> None:
-    text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+def test_client_playbook_hygiene_and_gram() -> None:
+    text = (ROOT / "telegram_ads_mcp" / "PLAYBOOK.md").read_text(encoding="utf-8")
     assert "Gram" in text or "GRAM" in text
     assert "INSTALL.md" in text
     assert "CONTRIBUTING.md" in text
@@ -140,9 +142,15 @@ def test_agents_hygiene_and_gram() -> None:
     assert "Ctrl+Shift+I" in text
     assert "DevTools" in text
     assert not text.lstrip().startswith("---")
-    packed = ROOT / "telegram_ads_mcp" / "AGENTS.md"
-    assert packed.is_file()
-    assert packed.read_text(encoding="utf-8") == text
+
+
+def test_maintenance_index_separate_from_client_playbook() -> None:
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    assert len(agents.splitlines()) <= 30
+    assert len(agents.encode("utf-8")) <= 4096
+    assert "## Reports / stats" not in agents
+    assert "spend_already_scaled" not in agents
+    assert not (ROOT / "telegram_ads_mcp" / "AGENTS.md").exists()
 
 
 def test_claude_md_bare_agents_include() -> None:
@@ -152,6 +160,7 @@ def test_claude_md_bare_agents_include() -> None:
     assert not agents.lstrip().startswith("---")
     lines = claude.splitlines()
     assert "@AGENTS.md" in lines
+    assert "@telegram_ads_mcp/PLAYBOOK.md" not in claude
     assert "Read [AGENTS.md](AGENTS.md)" not in claude
     assert not any(line.strip() == "`@AGENTS.md`" for line in lines)
 
@@ -210,4 +219,3 @@ def test_contracts_ship_in_wheel() -> None:
     assert "telegram_ads_mcp/schemas/" in contrib
     backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
     assert "Campaign-setup SaaS" in backlog
-

@@ -59,7 +59,7 @@ def test_live_cookie_values_absent_from_tracked_files() -> None:
             continue
         try:
             text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, FileNotFoundError):
             continue
         for key, val in secrets:
             if val in text:
@@ -74,7 +74,7 @@ def test_no_filled_stel_assignments_in_tracked_files() -> None:
         rel = path.relative_to(ROOT).as_posix()
         try:
             text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, FileNotFoundError):
             continue
         for line in text.splitlines():
             stripped = line.strip()

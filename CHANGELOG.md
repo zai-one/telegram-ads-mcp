@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Separate the short development `AGENTS.md` from the packaged client `telegram_ads_mcp/PLAYBOOK.md`. MCP playbook and topic resource URIs stay the same; skill references are generated from the packaged playbook. Wheel checks verify resources outside the checkout.
+- Migration: the installed `telegram_ads_mcp/AGENTS.md` path is removed; read `telegram_ads_mcp/PLAYBOOK.md` instead. The root `AGENTS.md` now contains development guidance only. `ads://playbook` and `ads://guide/{topic}` keep their existing content and URIs.
+
 ## 0.5.0 — 2026-10-13
 
 Operator-facing: agent layer per the ZAI.ONE MCP standard (router instructions, skills, guides, plugins), compact `get_ads` / `get_ad_stats` by default, working-directory `.env` limited to `STEL_*` cookies, LicenseRef-ZAI-ONE 2.0.

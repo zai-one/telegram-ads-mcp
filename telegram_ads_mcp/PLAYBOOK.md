@@ -1,6 +1,6 @@
-# AGENTS.md — Playbook
+# Telegram Ads — Client playbook
 
-MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook` (this file); one section at a time: `ads://guide/{topic}` (`ads://guide/index`). Skills: `skills/`. No YAML frontmatter. Claude Code: `CLAUDE.md` has a bare `@AGENTS.md` line. Install/star: [INSTALL.md](INSTALL.md). Repo/CI: [CONTRIBUTING.md](CONTRIBUTING.md).
+MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook` (this file); one section at a time: `ads://guide/{topic}` (`ads://guide/index`). Skills: `skills/`. No YAML frontmatter. Development instructions: root `AGENTS.md`. Install/star: [INSTALL.md](../INSTALL.md). Repo/CI: [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Currency
 
@@ -116,4 +116,4 @@ Call chain a service would replay: `check_session` → `search_targets` → `lau
 
 ## This repo
 
-Tool count 12–28. After editing this file, copy to `telegram_ads_mcp/AGENTS.md` and run `python scripts/sync_skills.py` (skills `references/` are generated from these sections). No extra markdown/reports. No `.env` / `VERIFY.md` in git. Bilingual README + pytest/CI checklist: [CONTRIBUTING.md](CONTRIBUTING.md).
+Tool count 12–28. Edit `telegram_ads_mcp/PLAYBOOK.md` and run `python scripts/sync_skills.py` (skills `references/` are generated from these sections). Root `AGENTS.md` is the short development index, not a playbook copy. No `.env` / `VERIFY.md` in git. Bilingual README + pytest/CI checklist: [CONTRIBUTING.md](../CONTRIBUTING.md).

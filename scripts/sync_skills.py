@@ -1,4 +1,4 @@
-"""Regenerate skills/*/references/*.md from AGENTS.md sections (single source).
+"""Regenerate skills/*/references/*.md from packaged PLAYBOOK.md sections.
 
 Usage: python scripts/sync_skills.py [--check]
 """
@@ -19,7 +19,7 @@ REFERENCES: dict[str, list[str]] = {
     "telegram-ads-diagnose-ad": ["stats", "danger", "errors"],
 }
 
-HEADER = "<!-- generated from AGENTS.md by scripts/sync_skills.py; do not edit -->\n\n"
+HEADER = "<!-- generated from telegram_ads_mcp/PLAYBOOK.md by scripts/sync_skills.py; do not edit -->\n\n"
 
 
 def expected() -> dict[Path, str]:
@@ -28,7 +28,7 @@ def expected() -> dict[Path, str]:
         for name in topics:
             body = guide.topic(name)
             if body is None:
-                raise SystemExit(f"missing AGENTS.md section for topic {name}")
+                raise SystemExit(f"missing PLAYBOOK.md section for topic {name}")
             out[ROOT / "skills" / skill / "references" / f"{name}.md"] = HEADER + body
     return out
 

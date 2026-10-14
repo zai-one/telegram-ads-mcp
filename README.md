@@ -30,7 +30,7 @@
   &nbsp;·&nbsp;
   <a href="INSTALL.md">Install (for agents)</a>
   &nbsp;·&nbsp;
-  <a href="AGENTS.md">Playbook</a>
+  <a href="telegram_ads_mcp/PLAYBOOK.md">Playbook</a>
 </p>
 
 ---

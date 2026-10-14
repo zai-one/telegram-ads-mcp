@@ -120,7 +120,7 @@ def _maybe_access_denied(result: Any, *, tool: str, action: str) -> Any:
 
 @mcp.resource("ads://playbook", mime_type="text/markdown")
 def playbook_resource() -> str:
-    """Full agent playbook (AGENTS.md). Prefer ads://guide/{topic} for one section."""
+    """Full client PLAYBOOK.md. Prefer ads://guide/{topic} for one section."""
     return guide.playbook()
 
 

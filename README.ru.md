@@ -30,7 +30,7 @@
   &nbsp;·&nbsp;
   <a href="INSTALL.md">Установка (для агента)</a>
   &nbsp;·&nbsp;
-  <a href="AGENTS.md">Плейбук</a>
+  <a href="telegram_ads_mcp/PLAYBOOK.md">Плейбук</a>
 </p>
 
 ---
