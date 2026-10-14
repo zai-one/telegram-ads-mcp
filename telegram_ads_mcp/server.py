@@ -223,7 +223,7 @@ async def check_session() -> dict[str, Any]:
     """Ping the current ads.telegram.org session.
 
     Returns owner_id, cabinet (ton/eur/stars), currency, balance.
-    Does not return api_hash or cookies. TON, EUR and Stars cabinets are supported.
+    Does not return api_hash or cookies. TON and EUR cabinets are supported; Stars only with TG_ADS_STARS=on.
     If ok=false with code=auth, offer INSTALL.md DevTools steps; they write .env (never paste into chat); then reload_session.
     """
     client, err = await _client_or_fail(require_supported=False)

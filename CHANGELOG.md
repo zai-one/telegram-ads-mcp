@@ -10,7 +10,7 @@
 - `get_ad_stats(detail="csv")` exports all chart series as CSV.
 - Instructions are generated from `telegram_ads_mcp/router.py`: one line per intent -> tool; skill;
   `ads://guide/<topic>`, with `ads://playbook` / `ads://guide/index` fallback.
-- Router eval (`tests/evals/routing_cases.json`, 19 RU/EN requests) fails on any unreachable tool, skill or guide.
+- Router eval (`tests/evals/routing_cases.json`, 23 RU/EN requests incl. paraphrases and negative cases) fails on any unreachable tool, skill or guide.
 ## 0.5.0 — 2026-10-13
 
 Operator-facing: agent layer per the ZAI.ONE MCP standard (router instructions, skills, guides, plugins), compact `get_ads` / `get_ad_stats` by default, working-directory `.env` limited to `STEL_*` cookies, LicenseRef-ZAI-ONE 2.0.

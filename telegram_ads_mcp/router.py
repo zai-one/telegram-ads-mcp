@@ -37,7 +37,7 @@ ROUTES: tuple[Route, ...] = (
 )  # fmt: skip
 
 HEADER = (
-    "telegram-ads MCP: cabinets TON (Gram), EUR, Stars (whole numbers). Start: check_session -> "
+    "telegram-ads MCP: cabinets TON (Gram), EUR; Stars opt-in (TG_ADS_STARS=on, whole numbers). Start: check_session -> "
     "get_account (currency, money, write_gate). Never guess IDs."
 )
 FOOTER = (
