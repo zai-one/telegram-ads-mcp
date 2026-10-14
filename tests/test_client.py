@@ -91,8 +91,10 @@ async def test_stars_opt_in(monkeypatch) -> None:
     assert cabinet["cabinet"] == "stars"
     with pytest.raises(Exception):  # default: refused (paid path only fixture-tested)
         await client.require_supported_cabinet()
+    assert (await client.get_account())["supported"] is False  # the card must not claim otherwise
     monkeypatch.setenv("TG_ADS_STARS", "on")
     assert (await client.require_supported_cabinet())["money"]["unit"].startswith("Telegram Stars")
+    assert (await client.get_account())["supported"] is True
     await client.aclose()
 
 

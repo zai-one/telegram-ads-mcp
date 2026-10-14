@@ -76,7 +76,7 @@ How: form https://github.com/zai-one/telegram-ads-mcp/issues/new/choose — or a
 
 ## Reports / stats
 
-No CSV / export tool (`get_ad_stats_csv` does not exist). A dump is tool JSON: `get_account` + `get_ads`/`get_ad` + `get_ad_stats`. Cabinet job — interpret in chat; do not mix with this git repo.
+No separate CSV / export tool (`get_ad_stats_csv` does not exist; use `get_ad_stats(detail="csv")`, see below). A dump is tool JSON: `get_account` + `get_ads`/`get_ad` + `get_ad_stats`. Cabinet job — interpret in chat; do not mix with this git repo.
 
 - Currency: `get_account` → `cabinet: "ton"`, `currency: "GRAM"`. List `spent`/`cpm`/`budget` and `summary.spend` are Gram. IDs and money stay strings.
 - Request `period=5min` (default) = last 24h, 5-minute buckets (`interval_seconds` 300). `period=day` = lifetime daily. Success JSON echoes `period` (`5min`/`day`). `summary.period` is a span label (`24h` / `Nd`), not the request arg. Write `period` next to every dump. Do not mix 24h with lifetime.
@@ -91,7 +91,7 @@ No CSV / export tool (`get_ad_stats_csv` does not exist). A dump is tool JSON: `
 
 Prefer `launch_ad`. It does **not** activate. It **does** add budget (default `"1"` Gram) and `send_target_to_review`. Name cpm + budget + `target_type` first. If `steps.validate` fails, stop. Optional targeting on `launch_ad`: `topics`, `exclude_topics` / `exclude_channels`, `locations`, user excludes. Do **not** send `langs` together with specific `channels` (platform Target invalid) — the tool drops `langs` in that case. Full field set remains on `create_ad`.
 
-Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`), or `budget_target` for an absolute total (server sends the difference). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
+Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`), or `budget_target` to set the ad's `budget` (as `get_ad`/`get_ads` report it) to an absolute value (server reads it, sends the difference, returns `budget_change`). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
 
 ## Danger
 

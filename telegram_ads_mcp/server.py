@@ -23,6 +23,7 @@ from telegram_ads_mcp.router import instructions as router_instructions
 from telegram_ads_mcp.parse import (
     charts_to_csv,
     check_amounts,
+    parse_amount,
     compact,
     access_denied_payload,
     channel_langs_conflict,
@@ -95,20 +96,32 @@ async def _money_error(client: Any, target_type: str | None = None, **amounts: s
     return None
 
 
-async def _budget_delta(client: Any, ad_id: str, target: str) -> tuple[str | None, str | None]:
-    """(action, amount) that moves the ad's total budget to `target`; (None, reason) when unknown."""
+async def _budget_delta(
+    client: Any, ad_id: str, target: str
+) -> tuple[str | None, str | None, str | None]:
+    """(action, amount, current) that moves the ad's `budget` to `target`; (None, reason, None) when unknown.
+
+    The current value is read strictly: a number, or a plain decimal string. Anything else
+    ("1,234", "€5", None) is refused rather than guessed, because reading it too low would make
+    the increase larger than the operator asked for.
+    """
     card = await client.get_ad(ad_id)
     ad = card.get("ad") if isinstance(card, dict) and isinstance(card.get("ad"), dict) else {}
     raw = ad.get("budget")
+    unreadable = f"Current budget of ad {ad_id} is not readable ({raw!r}); use budget_action."
+    raw_text = parse_amount(raw) if raw is not None else None
+    wanted_text = parse_amount(target)
+    if raw_text is None or wanted_text is None:
+        return None, unreadable, None
     try:
-        current = Decimal(str(raw).replace(",", ".").strip())
-        wanted = Decimal(str(target).replace(",", ".").strip())
+        current = Decimal(raw_text)
+        wanted = Decimal(wanted_text)
     except (InvalidOperation, ValueError):
-        return None, f"Current budget of ad {ad_id} is not readable ({raw!r}); use budget_action."
+        return None, unreadable, None
     delta = wanted - current
     if delta == 0:
-        return "none", f"Budget already equals {target}; nothing sent."
-    return ("increase" if delta > 0 else "decrease"), format(abs(delta).normalize(), "f")
+        return "none", f"Budget already equals {target}; nothing sent.", raw_text
+    return ("increase" if delta > 0 else "decrease"), format(abs(delta).normalize(), "f"), raw_text
 
 
 async def _client_or_fail(require_supported: bool = True):
@@ -545,8 +558,9 @@ async def edit_ad(
     picture=True shows the avatar, picture=False turns it off (sends picture=0).
     clear_media=True removes attached photo/video.
     budget_action + budget_amount changes total budget (increase resumes a depleted Stopped ad).
-    budget_target sets the total budget to an absolute value (the server reads the current budget and
-    sends the increase/decrease difference); do not combine with budget_action.
+    budget_target sets the ad's `budget` (the value get_ad / get_ads report) to an absolute value: the
+    server reads it, sends the increase/decrease difference and returns `budget_change` (current,
+    target, action, amount); do not combine with budget_action.
     Targeting cannot be changed after creation — clone_ad instead.
     confirm: required to activate or change budget unless TG_ADS_WRITE_GATE=open.
     """
@@ -581,7 +595,7 @@ async def edit_ad(
         if budget_action or budget_amount:
             return attach_gate({"ok": False, "code": "invalid_args", "retryable": False,
                                 "error": "Pass budget_target or budget_action+budget_amount, not both."})
-        budget_action, budget_amount = await _budget_delta(client, ad_id, budget_target)
+        budget_action, budget_amount, budget_current = await _budget_delta(client, ad_id, budget_target)
         if budget_action == "none":
             return attach_gate({"ok": True, "code": "no_change", "budget_change": None, "note": budget_amount})
         if budget_action is None:
@@ -590,7 +604,12 @@ async def edit_ad(
     results: dict[str, Any] = {}
     if budget_target is not None:
         # Report the computed difference so the spend is visible, not only the absolute target.
-        results["budget_change"] = {"target": budget_target, "action": budget_action, "amount": budget_amount}
+        results["budget_change"] = {
+            "current": budget_current,
+            "target": budget_target,
+            "action": budget_action,
+            "amount": budget_amount,
+        }
     if budget_action and budget_amount:
         method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"
         results["budget"] = await client.call(
@@ -768,6 +787,12 @@ async def launch_ad(
     client, err = await _client_or_fail()
     if err:
         return err
+    # `budget` is spent below via incrAdBudget, after create_ad(budget="0"): check it here, before
+    # checkAdPost, or a malformed spend amount would never reach the cabinet money rules.
+    money_err = await _money_error(client, target_type=target_type, cpm=cpm, budget=budget,
+                                   daily_budget=daily_budget)
+    if money_err:
+        return money_err
     steps: dict[str, Any] = {}
     steps["validate"] = await client.call(
         "checkAdPost",

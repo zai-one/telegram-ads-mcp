@@ -284,7 +284,8 @@ class TelegramAdsClient:
             "cabinet": cabinet["cabinet"],
             "currency": cabinet["currency"],
             "supports_user_targeting": cabinet["supports_user_targeting"],
-            "supported": cabinet["supported"],
+            # Stars is detected and described, but only usable with the opt-in.
+            "supported": bool(cabinet["supported"]) and (cabinet["cabinet"] != "stars" or stars_enabled()),
             "money": cabinet.get("money"),
             "balance": balance,
         }

@@ -2,7 +2,7 @@
 
 ## Reports / stats
 
-No CSV / export tool (`get_ad_stats_csv` does not exist). A dump is tool JSON: `get_account` + `get_ads`/`get_ad` + `get_ad_stats`. Cabinet job — interpret in chat; do not mix with this git repo.
+No separate CSV / export tool (`get_ad_stats_csv` does not exist; use `get_ad_stats(detail="csv")`, see below). A dump is tool JSON: `get_account` + `get_ads`/`get_ad` + `get_ad_stats`. Cabinet job — interpret in chat; do not mix with this git repo.
 
 - Currency: `get_account` → `cabinet: "ton"`, `currency: "GRAM"`. List `spent`/`cpm`/`budget` and `summary.spend` are Gram. IDs and money stay strings.
 - Request `period=5min` (default) = last 24h, 5-minute buckets (`interval_seconds` 300). `period=day` = lifetime daily. Success JSON echoes `period` (`5min`/`day`). `summary.period` is a span label (`24h` / `Nd`), not the request arg. Write `period` next to every dump. Do not mix 24h with lifetime.

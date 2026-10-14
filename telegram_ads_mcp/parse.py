@@ -284,6 +284,22 @@ CABINET_MONEY: dict[str, dict[str, Any]] = {
 }
 
 
+# The amount string is sent to the platform as given, so only the plain form is accepted: digits
+# with an optional dot fraction. "1,5", "1e3", "1_000", "+1", "inf" would otherwise pass a float()
+# check here and reach a money endpoint whose parsing of them is unknown.
+_AMOUNT_RE = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+
+
+def parse_amount(raw: Any) -> str | None:
+    """Plain non-negative decimal string (digits, optional dot fraction) or None."""
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return str(raw) if raw >= 0 else None
+    text = str(raw).strip()
+    return text if _AMOUNT_RE.fullmatch(text) else None
+
+
 def check_amounts(cabinet: Mapping[str, Any] | None, **amounts: str | None) -> str | None:
     """Return an error string when an amount does not fit the cabinet currency, else None."""
     kind = (cabinet or {}).get("cabinet", "ton")
@@ -291,18 +307,16 @@ def check_amounts(cabinet: Mapping[str, Any] | None, **amounts: str | None) -> s
     for name, raw in amounts.items():
         if raw in (None, ""):
             continue
-        text = str(raw).strip().replace(",", ".")
-        try:
-            value = float(text)
-        except ValueError:
-            return f"{name}={raw!r} is not a number"
-        if value != value or value in (float("inf"), float("-inf")):
-            return f"{name}={raw!r} is not a finite number"
-        if value < 0:
+        text = str(raw).strip()
+        if text.startswith("-"):
             return f"{name} must be >= 0"
-        if rules["integer_only"] and not value.is_integer():
+        if parse_amount(text) is None:
+            hint = " (use a dot as the decimal separator)" if "," in text else ""
+            return f"{name}={raw!r} is not a number: plain decimal like 1.25 expected{hint}"
+        fraction = text.split(".", 1)[1] if "." in text else ""
+        if rules["integer_only"] and fraction.strip("0"):
             return f"{name}={raw!r}: {rules['unit']} cabinet takes whole numbers only"
-        if "." in text and len(text.split(".", 1)[1]) > rules["decimals"]:
+        if len(fraction) > rules["decimals"] and fraction[rules["decimals"]:].strip("0"):
             return f"{name}={raw!r}: at most {rules['decimals']} decimals in {rules['unit']}"
     return None
 

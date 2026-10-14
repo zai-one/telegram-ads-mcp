@@ -212,7 +212,23 @@ def test_check_amounts_per_cabinet() -> None:
     assert "decimals" in (check_amounts(eur, cpm="0.255") or "")
     assert "not a number" in (check_amounts({"cabinet": "ton"}, budget="ten") or "")
     assert check_amounts({"cabinet": "ton"}, budget="-1") == "budget must be >= 0"
-    assert "finite" in (check_amounts({"cabinet": "eur"}, cpm="nan") or "")
+    assert "not a number" in (check_amounts({"cabinet": "eur"}, cpm="nan") or "")
+
+
+def test_check_amounts_accepts_only_plain_decimals() -> None:
+    """The amount string reaches incrAdBudget / createAd as given, so a form that float() accepts but the
+    platform may read differently ("1,5", "1e3", "1_000") must be refused, not passed through."""
+    from telegram_ads_mcp.parse import check_amounts
+
+    ton = {"cabinet": "ton"}
+    for raw in ("1,5", "1,234", "1e3", "1_000", "+1", "inf", "-inf", "0x10", "1.", ".5", "1.2.3", "１"):
+        assert check_amounts(ton, budget=raw), raw
+    assert "decimal separator" in (check_amounts(ton, budget="1,5") or "")
+    assert check_amounts(ton, budget="-0.5") == "budget must be >= 0"
+    for raw in ("0", "1", "12.5", "12.50", " 3 ", "12.500"):
+        assert check_amounts(ton, budget=raw) is None, raw
+    assert check_amounts({"cabinet": "stars"}, budget="15.0") is None
+    assert check_amounts({"cabinet": "stars"}, budget="15.01")
 
 
 def test_update_hint_never_breaks_budget() -> None:

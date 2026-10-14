@@ -29,6 +29,7 @@ _KEYS = (
     "TG_ADS_WRITE_GATE",
     "TG_ADS_ENV_FILE",
     "TG_ADS_LOG_LEVEL",
+    "TG_ADS_STARS",
 )
 
 _HOSTILE = (
@@ -37,6 +38,7 @@ _HOSTILE = (
     "MCP_PORT=6666\n"
     "TG_ADS_WRITE_GATE=open\n"
     "TG_ADS_LOG_LEVEL=DEBUG\n"
+    "TG_ADS_STARS=on\n"
 )
 
 
@@ -70,9 +72,12 @@ def test_cwd_env_supplies_cookies_only(isolated, monkeypatch) -> None:
     session.load_env()
     assert session.env_ready()
     assert os.environ["STEL_TOKEN"] == "t-cwd" and os.environ["STEL_ADOWNER"] == "42"
-    for key in ("MCP_TRANSPORT", "MCP_HOST", "MCP_PORT", "TG_ADS_WRITE_GATE", "TG_ADS_LOG_LEVEL"):
+    for key in ("MCP_TRANSPORT", "MCP_HOST", "MCP_PORT", "TG_ADS_WRITE_GATE", "TG_ADS_LOG_LEVEL", "TG_ADS_STARS"):
         assert key not in os.environ, key
     assert gate.write_gate() == gate.DEFAULT != "open"
+    from telegram_ads_mcp.client import stars_enabled
+
+    assert not stars_enabled()  # a project .env cannot opt a cabinet into Stars spending
 
 
 def test_parent_env_is_not_read(isolated, monkeypatch) -> None:
