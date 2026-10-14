@@ -3,9 +3,9 @@
 
 ## Unreleased
 
-- EUR and Stars ad cabinets are supported (Stars were refused before). `get_account` returns `money`
+- EUR cabinets are supported; Stars cabinets are opt-in with `TG_ADS_STARS=on` (fixture-tested only, refused by default as before). `get_account` returns `money`
   (unit, decimals, integer_only); `create_ad` / `edit_ad` reject amounts that do not fit the cabinet
-  (`invalid_amount`) and user targeting on Stars (`unsupported_in_cabinet`). `TG_ADS_STARS=off` restores refusal.
+  (`invalid_amount`) and user targeting on Stars (`unsupported_in_cabinet`). `edit_ad(budget_target=...)` returns `budget_change` (current, target, action, amount).
 - `edit_ad(budget_target=...)` sets an absolute total budget (reads current, sends the difference).
 - `get_ad_stats(detail="csv")` exports all chart series as CSV.
 - Instructions are generated from `telegram_ads_mcp/router.py`: one line per intent -> tool; skill;

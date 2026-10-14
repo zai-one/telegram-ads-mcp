@@ -41,7 +41,7 @@
 
 У Telegram нет публичного advertiser API. Сервер работает от сессии ads.telegram.org (`stel_token` / `stel_ssid` в gitignore `.env`) и отдаёт 26 MCP tools, плюс `ads://playbook` и `ads://account`.
 
-Кабинеты: **TON** (валюта **Gram**), **EUR** и **Stars** (только целые суммы, без таргетинга на пользователей; `TG_ADS_STARS=off` выключает). `get_account` отдаёт правила `money`; неверная сумма отклоняется до вызова API. Неофициально, не Telegram.
+Кабинеты: **TON** (валюта **Gram**), **EUR** и **Stars** (только целые суммы, без таргетинга на пользователей; включаются только `TG_ADS_STARS=on`). `get_account` отдаёт правила `money`; неверная сумма отклоняется до вызова API. Неофициально, не Telegram.
 
 Писать в кабинет: `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (по умолчанию `confirm`). Spend/destructive без `confirm=true` не пройдут, пока не `open`. Блок: `code: write_gated` с `tool` / `class` / `would_send` (что собирались отправить, без секретов) и `sent: false` — это не dry-run платформы.
 

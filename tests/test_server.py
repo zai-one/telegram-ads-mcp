@@ -316,4 +316,12 @@ async def test_edit_ad_budget_target_sends_difference() -> None:
         both = await server_mod.edit_ad(ad_id="7", budget_target="9", budget_action="increase", budget_amount="1")
     assert first[0] == "incrAdBudget" and first[1]["amount"] == "2.5" and up["ok"] is not False
     assert second[0] == "decrAdBudget" and second[1]["amount"] == "0.5" and down["ok"] is not False
-    assert same["code"] == "budget_unknown" and both["code"] == "invalid_args"
+    assert up["budget_change"] == {"target": "8", "action": "increase", "amount": "2.5"}
+    assert down["budget_change"]["action"] == "decrease"
+    assert same["code"] == "no_change" and both["code"] == "invalid_args"
+    fake.get_ad.return_value = {"ok": True, "ad": {"budget": "n/a"}}
+    with patch("telegram_ads_mcp.server.get_client", AsyncMock(return_value=fake)), patch.dict(
+        "os.environ", {"TG_ADS_WRITE_GATE": "open"}
+    ):
+        unknown = await server_mod.edit_ad(ad_id="7", budget_target="9")
+    assert unknown["code"] == "budget_unknown"

@@ -41,7 +41,7 @@
 
 Telegram does not publish an advertiser API. This server wraps the logged-in ads.telegram.org session (`stel_token` / `stel_ssid` in a gitignored `.env`) and exposes 26 MCP tools, plus `ads://playbook` and `ads://account`.
 
-Cabinets: **TON** (billed in **Gram**), **EUR** and **Stars** (whole-number amounts, no user targeting; `TG_ADS_STARS=off` disables). `get_account` returns `money` rules; bad amounts are rejected before any call. Unofficial — not Telegram.
+Cabinets: **TON** (billed in **Gram**), **EUR** and **Stars** (whole-number amounts, no user targeting; opt-in with `TG_ADS_STARS=on`). `get_account` returns `money` rules; bad amounts are rejected before any call. Unofficial — not Telegram.
 
 Write permission is `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (default `confirm`). Spend/destructive tools need `confirm=true` unless `open`. A blocked call returns `code: write_gated` with `tool` / `class` / `would_send` (intended args, no secrets) and `sent: false` — not a platform dry-run.
 

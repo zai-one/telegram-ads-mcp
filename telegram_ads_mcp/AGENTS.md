@@ -9,7 +9,7 @@ Three cabinet types; `get_account` returns `cabinet`, `currency` and `money` (un
 - **EUR** (`cabinet: "eur"`): ad-platform cabinet in euro; 2 decimals; user targeting available.
 - **Stars** (`cabinet: "stars"`, `currency: "XTR"`): bot/channel owners pay in Telegram Stars; whole
   numbers only for `cpm`, `budget`, `daily_budget`, `budget_amount`; no `target_type=users`
-  (`code: "unsupported_in_cabinet"`). Disabled only when the operator sets `TG_ADS_STARS=off`
+  (`code: "unsupported_in_cabinet"`). Opt-in: enabled only when the operator sets `TG_ADS_STARS=on`; otherwise
   (`code: "stars_cabinet"` -> `list_accounts` / `select_account`).
 A wrong amount returns `code: "invalid_amount"` before any API call. Never convert between currencies;
 quote amounts in the cabinet's own unit.

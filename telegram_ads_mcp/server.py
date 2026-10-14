@@ -107,7 +107,7 @@ async def _budget_delta(client: Any, ad_id: str, target: str) -> tuple[str | Non
         return None, f"Current budget of ad {ad_id} is not readable ({raw!r}); use budget_action."
     delta = wanted - current
     if delta == 0:
-        return None, f"Budget already equals {target}."
+        return "none", f"Budget already equals {target}; nothing sent."
     return ("increase" if delta > 0 else "decrease"), format(abs(delta).normalize(), "f")
 
 
@@ -300,7 +300,7 @@ async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]
                 "code": "stars_cabinet",
                 "cabinet": "stars",
                 "owner_id": owner_id,
-                "error": "Stars cabinet selected but TG_ADS_STARS=off. Set TG_ADS_STARS=on or pick a Gram/EUR cabinet.",
+                "error": "Stars cabinet selected; Stars support is opt-in. Set TG_ADS_STARS=on or pick a Gram/EUR cabinet.",
                 "accounts_hint": "Call list_accounts and select_account with a Gram/TON or EUR owner_id.",
             })
         return info
@@ -582,10 +582,15 @@ async def edit_ad(
             return attach_gate({"ok": False, "code": "invalid_args", "retryable": False,
                                 "error": "Pass budget_target or budget_action+budget_amount, not both."})
         budget_action, budget_amount = await _budget_delta(client, ad_id, budget_target)
+        if budget_action == "none":
+            return attach_gate({"ok": True, "code": "no_change", "budget_change": None, "note": budget_amount})
         if budget_action is None:
             return attach_gate({"ok": False, "code": "budget_unknown", "retryable": False,
                                 "error": budget_amount or "Current budget unknown; use budget_action."})
     results: dict[str, Any] = {}
+    if budget_target is not None:
+        # Report the computed difference so the spend is visible, not only the absolute target.
+        results["budget_change"] = {"target": budget_target, "action": budget_action, "amount": budget_amount}
     if budget_action and budget_amount:
         method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"
         results["budget"] = await client.call(

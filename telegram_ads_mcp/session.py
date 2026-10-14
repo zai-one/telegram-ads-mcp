@@ -144,7 +144,7 @@ async def switch_account(owner_id: str) -> TelegramAdsClient:
 _ERROR_HINTS: dict[str, tuple[bool, str]] = {
     "config": (False, "Set STEL_TOKEN/STEL_SSID in .env (INSTALL.md), then call reload_session."),
     "auth": (False, "Offer INSTALL.md DevTools steps; the user updates .env on disk, then reload_session."),
-    "stars_cabinet": (False, "Stars disabled (TG_ADS_STARS=off): set TG_ADS_STARS=on or switch via list_accounts."),
+    "stars_cabinet": (False, "Stars is opt-in: set TG_ADS_STARS=on or switch via list_accounts."),
     "error": (True, "Unexpected error; retry once, then offer an Issue without secrets."),
 }
 

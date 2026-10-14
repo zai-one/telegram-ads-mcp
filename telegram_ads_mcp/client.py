@@ -49,8 +49,8 @@ class ConfigError(Exception):
 
 
 def stars_enabled() -> bool:
-    """Stars cabinets are supported unless the operator sets TG_ADS_STARS=off."""
-    return os.environ.get("TG_ADS_STARS", "on").strip().lower() not in {"off", "0", "false", "no"}
+    """Stars cabinets are opt-in (TG_ADS_STARS=on): amounts are only fixture-tested, not live-verified."""
+    return os.environ.get("TG_ADS_STARS", "off").strip().lower() in {"on", "1", "true", "yes"}
 
 
 class StarsCabinetError(Exception):
@@ -247,7 +247,7 @@ class TelegramAdsClient:
         info = await self.detect_cabinet()
         if info.get("cabinet") == "stars" and not stars_enabled():
             raise StarsCabinetError(
-                "Stars cabinet detected and TG_ADS_STARS=off. Set TG_ADS_STARS=on, or call "
+                "Stars cabinet detected; Stars support is opt-in (TG_ADS_STARS=on). Set it, or call "
                 "list_accounts / select_account to switch to a Gram (TON) or EUR cabinet."
             )
         return info
