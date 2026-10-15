@@ -68,7 +68,8 @@ async def test_authenticate_and_get_account() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stars_refused() -> None:
+async def test_stars_opt_in(monkeypatch) -> None:
+    monkeypatch.delenv("TG_ADS_STARS", raising=False)
     def stars_router(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/account":
             return httpx.Response(200, text=STARS_ACCOUNT)
@@ -88,8 +89,12 @@ async def test_stars_refused() -> None:
     await client.authenticate()
     cabinet = await client.detect_cabinet()
     assert cabinet["cabinet"] == "stars"
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # default: refused (paid path only fixture-tested)
         await client.require_supported_cabinet()
+    assert (await client.get_account())["supported"] is False  # the card must not claim otherwise
+    monkeypatch.setenv("TG_ADS_STARS", "on")
+    assert (await client.require_supported_cabinet())["money"]["unit"].startswith("Telegram Stars")
+    assert (await client.get_account())["supported"] is True
     await client.aclose()
 
 
@@ -248,3 +253,86 @@ def test_normalize_ad_shipped() -> None:
     assert out["active"] == "0"
     assert out["target_type"] == "users"
     assert "t.me/bot/start" in out["promote_url"]
+
+
+def _money_client(handler) -> TelegramAdsClient:
+    """Authenticated-looking client whose /api posts go to `handler(method, request)`."""
+    from urllib.parse import parse_qs
+
+    def router(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/api"):
+            form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+            return handler(form.get("method"), request)
+        return _router(request)
+
+    client = TelegramAdsClient("tok", "ssid")
+    client._http = httpx.AsyncClient(
+        base_url="https://ads.telegram.org",
+        transport=httpx.MockTransport(router),
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    return client
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["read_timeout", "http_502"])
+async def test_money_call_is_never_resent_after_it_may_have_landed(failure: str) -> None:
+    """A lost reply / 5xx on incrAdBudget must not be retried: the retry would add the money twice."""
+    sent: list[str] = []
+
+    def handler(method, request):
+        sent.append(method)
+        if failure == "read_timeout":
+            raise httpx.ReadTimeout("lost reply", request=request)
+        return httpx.Response(502, text="bad gateway")
+
+    client = _money_client(handler)
+    await client.authenticate()
+    out = await client.call("incrAdBudget", {"owner_id": "own1", "ad_id": "7", "amount": "5"})
+    assert sent == ["incrAdBudget"]
+    assert out["ok"] is False and out["code"] == "outcome_unknown" and out["retryable"] is False
+    sent.clear()
+    out = await client.call("transferFunds", {"owner_id": "own1", "account_id": "a", "amount": "5"})
+    assert sent == ["transferFunds"] and out["code"] == "outcome_unknown"
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_money_call_retries_only_when_request_was_not_sent() -> None:
+    """ConnectError means the request never left: retrying a money call is safe there. Reads still retry 5xx."""
+    seen: list[str] = []
+
+    def handler(method, request):
+        seen.append(method)
+        if len(seen) == 1:
+            raise httpx.ConnectError("refused", request=request)
+        if method == "getAdsList" and seen.count("getAdsList") == 1:
+            return httpx.Response(502, text="bad gateway")
+        return httpx.Response(200, json={"ok": True, "items": []})
+
+    client = _money_client(handler)
+    await client.authenticate()
+    out = await client.call("incrAdBudget", {"owner_id": "own1", "ad_id": "7", "amount": "5"})
+    assert out["ok"] is True and seen == ["incrAdBudget", "incrAdBudget"]
+    listing = await client.call("getAdsList", {"owner_id": "own1"})
+    assert listing["ok"] is True and seen.count("getAdsList") == 2
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_get_ad_fresh_bypasses_cached_list() -> None:
+    """budget_target reads with fresh=True: a 30 s cached list budget must not be used for money."""
+    budget = {"value": "5"}
+
+    def handler(method, request):
+        if method == "getAd":
+            return httpx.Response(400, text="bad")
+        return httpx.Response(200, json={"items": [{"ad_id": "7", "budget": budget["value"]}]})
+
+    client = _money_client(handler)
+    await client.authenticate()
+    assert (await client.get_ad("7"))["ad"]["budget"] == "5"
+    budget["value"] = "8"  # changed in the cabinet UI meanwhile
+    assert (await client.get_ad("7"))["ad"]["budget"] == "5"  # cached view (fine for reads)
+    assert (await client.get_ad("7", fresh=True))["ad"]["budget"] == "8"
+    await client.aclose()

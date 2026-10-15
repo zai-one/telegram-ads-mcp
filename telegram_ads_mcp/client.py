@@ -39,6 +39,27 @@ log = logging.getLogger("telegram_ads_mcp.client")
 BASE_URL = "https://ads.telegram.org"
 USER_AGENT = f"telegram-ads-mcp/{__version__}"
 
+# API methods that move money. They are never re-sent once the request may have reached the
+# platform: a lost reply or a 5xx returns `outcome_unknown` instead of applying the change twice.
+MONEY_METHODS = frozenset(
+    {"incrAdBudget", "decrAdBudget", "transferFunds", "transferWithdrawFunds", "sendAddFundsRequest"}
+)
+# Transport failures that happen before the request is sent; safe to retry even for money.
+_NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+
+
+def outcome_unknown(method: str, reason: str) -> dict[str, Any]:
+    """A money call may or may not have been applied: report it, never retry it blindly."""
+    return {
+        "ok": False,
+        "code": "outcome_unknown",
+        "method": method,
+        "sent": "unknown",
+        "retryable": False,
+        "error": f"{method}: {reason}; the platform may or may not have applied it.",
+        "hint": "Read the current state (get_ad / get_account) before sending any new money change.",
+    }
+
 
 class AuthError(Exception):
     """Session cookies are invalid or expired."""
@@ -46,6 +67,11 @@ class AuthError(Exception):
 
 class ConfigError(Exception):
     """Required environment is missing."""
+
+
+def stars_enabled() -> bool:
+    """Stars cabinets are opt-in (TG_ADS_STARS=on): amounts are only fixture-tested, not live-verified."""
+    return os.environ.get("TG_ADS_STARS", "off").strip().lower() in {"on", "1", "true", "yes"}
 
 
 class StarsCabinetError(Exception):
@@ -77,6 +103,8 @@ class TelegramAdsClient:
         self._account_html: str | None = None
         self._ads_list_cache: tuple[float, str | None, dict[str, Any]] | None = None
         self._getad_broken = False
+        # Serializes read-modify-write money operations (budget_target) within this process.
+        self.money_lock = anyio.Lock()
         cookies: dict[str, str] = {
             "stel_token": stel_token,
             "stel_ssid": stel_ssid,
@@ -105,6 +133,7 @@ class TelegramAdsClient:
         url: str,
         *,
         retries: int = 3,
+        idempotent: bool = True,
         xhr: bool = True,
         follow_redirects: bool | None = None,
         **kwargs: Any,
@@ -125,9 +154,12 @@ class TelegramAdsClient:
             except httpx.TransportError as exc:
                 last_exc = exc
                 log.warning("transport error %s %s: %s", method, url, exc)
+                if not idempotent and not isinstance(exc, _NOT_SENT):
+                    raise
                 await anyio.sleep(0.4 * (2**attempt))
                 continue
-            if resp.status_code in (429, 500, 502, 503, 504) and attempt < retries - 1:
+            retry_codes = (429, 500, 502, 503, 504) if idempotent else (429,)
+            if resp.status_code in retry_codes and attempt < retries - 1:
                 log.warning("retryable HTTP %s on %s %s", resp.status_code, method, url)
                 await anyio.sleep(0.4 * (2**attempt))
                 continue
@@ -240,10 +272,10 @@ class TelegramAdsClient:
 
     async def require_supported_cabinet(self) -> dict[str, Any]:
         info = await self.detect_cabinet()
-        if info.get("cabinet") == "stars":
+        if info.get("cabinet") == "stars" and not stars_enabled():
             raise StarsCabinetError(
-                "Stars cabinet detected. This server only supports TON/Gram (primary) and EUR cabinets. "
-                "Call list_accounts / select_account to switch away from Stars."
+                "Stars cabinet detected; Stars support is opt-in (TG_ADS_STARS=on). Set it, or call "
+                "list_accounts / select_account to switch to a Gram (TON) or EUR cabinet."
             )
         return info
 
@@ -279,7 +311,9 @@ class TelegramAdsClient:
             "cabinet": cabinet["cabinet"],
             "currency": cabinet["currency"],
             "supports_user_targeting": cabinet["supports_user_targeting"],
-            "supported": cabinet["supported"],
+            # Stars is detected and described, but only usable with the opt-in.
+            "supported": bool(cabinet["supported"]) and (cabinet["cabinet"] != "stars" or stars_enabled()),
+            "money": cabinet.get("money"),
             "balance": balance,
         }
 
@@ -297,7 +331,15 @@ class TelegramAdsClient:
         data: dict[str, Any] = {"method": method}
         if params:
             data.update(strip_empty(params, keep=keep))
-        resp = await self._request("POST", self._api_url or "/api", data=data)
+        money = method in MONEY_METHODS
+        try:
+            resp = await self._request("POST", self._api_url or "/api", data=data, idempotent=not money)
+        except httpx.TransportError as exc:
+            if money and not isinstance(exc, _NOT_SENT):
+                return outcome_unknown(method, f"no reply ({type(exc).__name__})")
+            raise
+        if money and resp.status_code >= 500:
+            return outcome_unknown(method, f"HTTP {resp.status_code}")
         if resp.status_code in (301, 302, 303, 307, 308):
             if retry_auth:
                 log.info("auth redirect on %s — re-authenticating", method)
@@ -309,6 +351,8 @@ class TelegramAdsClient:
         try:
             result = resp.json()
         except json.JSONDecodeError as exc:
+            if money:
+                return outcome_unknown(method, "non-JSON reply")
             raise AuthError(f"Non-JSON response from {method}: {redact(resp.text[:200])}") from exc
         if isinstance(result, dict) and result.get("error") == "AUTH_REQUIRED":
             if retry_auth:
@@ -319,10 +363,11 @@ class TelegramAdsClient:
             raise AuthError("API returned AUTH_REQUIRED — session expired. Update .env and call reload_session.")
         return result
 
-    async def get_ads_list(self, offset_id: str | None = None) -> dict[str, Any]:
+    async def get_ads_list(self, offset_id: str | None = None, *, fresh: bool = False) -> dict[str, Any]:
+        """Ads list; cached 30 s unless `fresh` (money decisions must not use a cached budget)."""
         now = time.monotonic()
         cached = self._ads_list_cache
-        if cached and cached[1] == offset_id and now - cached[0] < 30:
+        if not fresh and cached and cached[1] == offset_id and now - cached[0] < 30:
             return cached[2]
         result = await self.call("getAdsList", {"owner_id": self.owner_id, "offset_id": offset_id})
         items = result.get("items") or result.get("ads") or []
@@ -332,7 +377,7 @@ class TelegramAdsClient:
         self._ads_list_cache = (now, offset_id, result)
         return result
 
-    async def get_ad(self, ad_id: str) -> dict[str, Any]:
+    async def get_ad(self, ad_id: str, *, fresh: bool = False) -> dict[str, Any]:
         # Live Gram cabinets return HTTP 400 for getAd; remember and skip.
         if not self._getad_broken:
             try:
@@ -352,7 +397,7 @@ class TelegramAdsClient:
             if isinstance(ad_state, dict):
                 return {"ok": True, "ad": normalize_ad(ad_state), "source": "html"}
 
-        listing = await self.get_ads_list()
+        listing = await self.get_ads_list(fresh=fresh)
         items = listing.get("items") or listing.get("ads") or []
         for item in items:
             if str(item.get("ad_id") or item.get("id")) == str(ad_id):

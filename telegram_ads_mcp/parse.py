@@ -10,6 +10,7 @@ import html as html_lib
 import json
 import logging
 import re
+from collections.abc import Mapping
 from typing import Any
 
 log = logging.getLogger("telegram_ads_mcp.parse")
@@ -269,8 +270,55 @@ def detect_cabinet(account_html: str, new_ad_html: str = "") -> dict[str, Any]:
         "cabinet": kind,
         "currency": cur,
         "supports_user_targeting": kind != "stars",
-        "supported": kind != "stars",
+        "supported": True,
+        "money": dict(CABINET_MONEY[kind]),
     }
+
+
+# How amounts look in each cabinet type. Telegram bills TON cabinets in Gram (TON), the ad
+# platform in EUR, and bot/channel owners in Telegram Stars (XTR, whole stars only).
+CABINET_MONEY: dict[str, dict[str, Any]] = {
+    "ton": {"unit": "Gram (TON)", "decimals": 2, "integer_only": False, "user_targeting": True},
+    "eur": {"unit": "EUR", "decimals": 2, "integer_only": False, "user_targeting": True},
+    "stars": {"unit": "Telegram Stars (XTR)", "decimals": 0, "integer_only": True, "user_targeting": False},
+}
+
+
+# The amount string is sent to the platform as given, so only the plain form is accepted: digits
+# with an optional dot fraction. "1,5", "1e3", "1_000", "+1", "inf" would otherwise pass a float()
+# check here and reach a money endpoint whose parsing of them is unknown.
+_AMOUNT_RE = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+
+
+def parse_amount(raw: Any) -> str | None:
+    """Plain non-negative decimal string (digits, optional dot fraction) or None."""
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return str(raw) if raw >= 0 else None
+    text = str(raw).strip()
+    return text if _AMOUNT_RE.fullmatch(text) else None
+
+
+def check_amounts(cabinet: Mapping[str, Any] | None, **amounts: str | None) -> str | None:
+    """Return an error string when an amount does not fit the cabinet currency, else None."""
+    kind = (cabinet or {}).get("cabinet", "ton")
+    rules = CABINET_MONEY.get(kind, CABINET_MONEY["ton"])
+    for name, raw in amounts.items():
+        if raw in (None, ""):
+            continue
+        text = str(raw).strip()
+        if text.startswith("-"):
+            return f"{name} must be >= 0"
+        if parse_amount(text) is None:
+            hint = " (use a dot as the decimal separator)" if "," in text else ""
+            return f"{name}={raw!r} is not a number: plain decimal like 1.25 expected{hint}"
+        fraction = text.split(".", 1)[1] if "." in text else ""
+        if rules["integer_only"] and fraction.strip("0"):
+            return f"{name}={raw!r}: {rules['unit']} cabinet takes whole numbers only"
+        if len(fraction) > rules["decimals"] and fraction[rules["decimals"]:].strip("0"):
+            return f"{name}={raw!r}: at most {rules['decimals']} decimals in {rules['unit']}"
+    return None
 
 
 def parse_chart(html: str, wrap_id: str) -> dict[str, Any] | None:
@@ -333,6 +381,35 @@ def parse_chart(html: str, wrap_id: str) -> dict[str, Any] | None:
     except (TypeError, ValueError, IndexError, KeyError):
         log.debug("malformed chart %s", wrap_id)
         return None
+
+
+def charts_to_csv(charts: Mapping[str, Any]) -> str:
+    """Flatten parsed charts into one CSV: time (UTC ISO), then <chart>.<series> columns."""
+    import csv
+    import io
+    from datetime import datetime, timezone
+
+    rows: dict[Any, dict[str, Any]] = {}
+    columns: list[str] = []
+    for chart_name, chart in charts.items():
+        if not isinstance(chart, Mapping):
+            continue
+        stamps = chart.get("timestamps") or []
+        for series_name, values in (chart.get("series") or {}).items():
+            col = f"{chart_name}.{series_name}"
+            columns.append(col)
+            for ts, value in zip(stamps, values, strict=False):
+                rows.setdefault(ts, {})[col] = value
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["time", *columns])
+    for ts in sorted(rows, key=lambda t: (t is None, t)):
+        try:
+            when = datetime.fromtimestamp(int(ts) / 1000, timezone.utc).isoformat()
+        except (TypeError, ValueError, OverflowError, OSError):
+            when = str(ts)
+        writer.writerow([when, *(rows[ts].get(c, "") for c in columns)])
+    return out.getvalue()
 
 
 def derived_metrics(views: float, clicks: float, spend: float) -> dict[str, float | None]:

@@ -4,7 +4,15 @@ MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook` (this file
 
 ## Currency
 
-ads.telegram.org cabinet is **TON**; billed in **Gram**. `get_account`: `cabinet: "ton"`, `currency: "GRAM"`. Say **Gram** or **TON** or **Gram (TON)** — all fine. EUR is another cabinet. Stars: `code: "stars_cabinet"` — switch, do not mutate.
+Three cabinet types; `get_account` returns `cabinet`, `currency` and `money` (unit, decimals, integer_only):
+- **TON** (`cabinet: "ton"`, `currency: "GRAM"`): billed in Gram (say Gram, TON or Gram (TON)); 2 decimals.
+- **EUR** (`cabinet: "eur"`): ad-platform cabinet in euro; 2 decimals; user targeting available.
+- **Stars** (`cabinet: "stars"`, `currency: "XTR"`): bot/channel owners pay in Telegram Stars; whole
+  numbers only for `cpm`, `budget`, `daily_budget`, `budget_amount`; no `target_type=users`
+  (`code: "unsupported_in_cabinet"`). Opt-in: enabled only when the operator sets `TG_ADS_STARS=on`; otherwise
+  (`code: "stars_cabinet"` -> `list_accounts` / `select_account`).
+A wrong amount returns `code: "invalid_amount"` before any API call (also `manage_funds` amounts and the difference `budget_target` would send). Never convert between currencies;
+quote amounts in the cabinet's own unit.
 
 ## Auth
 
@@ -37,6 +45,8 @@ Failures return `ok: false`, `error` (text), `code`, `retryable`, `hint`, `docs`
 | `stars_cabinet` | Stars cabinet active | `list_accounts` → `select_account` |
 | `write_gated` | gate blocked a write (`sent: false`) | show `would_send`, re-call with `confirm=true` after yes |
 | `access_denied` | audience/event not allowed | `hint: skip`, do not retry |
+| `outcome_unknown` | money call got no clear reply; not re-sent | `get_ad` / `get_account` first; never re-send blindly |
+| `budget_mismatch` | `budget_target` read-back is not the target | do not re-send; `get_ad`, fix with `budget_action` |
 | `error` | unexpected | retry once, then offer an Issue |
 
 ## Updates
@@ -68,7 +78,7 @@ How: form https://github.com/zai-one/telegram-ads-mcp/issues/new/choose — or a
 
 ## Reports / stats
 
-No CSV / export tool (`get_ad_stats_csv` does not exist). A dump is tool JSON: `get_account` + `get_ads`/`get_ad` + `get_ad_stats`. Cabinet job — interpret in chat; do not mix with this git repo.
+No separate CSV / export tool (`get_ad_stats_csv` does not exist; use `get_ad_stats(detail="csv")`, see below). A dump is tool JSON: `get_account` + `get_ads`/`get_ad` + `get_ad_stats`. Cabinet job — interpret in chat; do not mix with this git repo.
 
 - Currency: `get_account` → `cabinet: "ton"`, `currency: "GRAM"`. List `spent`/`cpm`/`budget` and `summary.spend` are Gram. IDs and money stay strings.
 - Request `period=5min` (default) = last 24h, 5-minute buckets (`interval_seconds` 300). `period=day` = lifetime daily. Success JSON echoes `period` (`5min`/`day`). `summary.period` is a span label (`24h` / `Nd`), not the request arg. Write `period` next to every dump. Do not mix 24h with lifetime.
@@ -77,11 +87,13 @@ No CSV / export tool (`get_ad_stats_csv` does not exist). A dump is tool JSON: `
 - Save vs chat: chat JSON is enough. If you write a file, gitignored `reports/` (same rule as `previews/`; optional `reports/<ad_id>-<period>.json`). Allowlist: `ad_id`, request `period`, `summary` (spend, spend_already_scaled, spend_scale, views, clicks, ctr, cpc, cpm_actual), list `spent`/`cpm`/`budget`/`active`. No cookies, `.env`, hashes, DevTools, full `charts`. Schema: `telegram_ads_mcp/schemas/stats-dump.schema.json`.
 - Read-only pass: prompt `review-account` — ≤5 problem ads, one recommendation, stop. `diagnose-ad` = one ad (`get_ad` + `get_ad_stats(period=5min)` + `preview_ad`; `period=day` for lifetime). If the dump contradicts this playbook (scale, period, getAd 400), **offer** an Issue (Found a bug → Issue).
 
+`get_ad_stats(detail="csv")` returns a `csv` string (time + every chart series) for export.
+
 ## Create (always on_hold)
 
 Prefer `launch_ad`. It does **not** activate. It **does** add budget (default `"1"` Gram) and `send_target_to_review`. Name cpm + budget + `target_type` first. If `steps.validate` fails, stop. Optional targeting on `launch_ad`: `topics`, `exclude_topics` / `exclude_channels`, `locations`, user excludes. Do **not** send `langs` together with specific `channels` (platform Target invalid) — the tool drops `langs` in that case. Full field set remains on `create_ad`.
 
-Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`). Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
+Media (picture/video): `upload_media` first, pass the returned id; preview with `preview_ad` or check a post with `check_ad_post`. Search ads: no text/picture/media. IDs from `search_targets` / `get_targeting_reference` (semicolon IDs, not @names). `target_type` immutable — `clone_ad`. Pause: `edit_ad(active="on_hold")`. Go live: `edit_ad(active="active")` only if asked. Budget: `budget_action` + `budget_amount` (not `budget=`), or `budget_target` to set the ad's `budget` (as `get_ad`/`get_ads` report it) to an absolute value (server reads it uncached, sends the difference, reads it back: `budget_change.after`; other than the target → `budget_mismatch`). Serialized per server process only; a parallel change in the cabinet UI shows up as `budget_mismatch`. Increasing budget on Stopped **resumes delivery** — spend class (`confirm`/`strict` need `confirm=true`).
 
 ## Danger
 
@@ -116,4 +128,4 @@ Call chain a service would replay: `check_session` → `search_targets` → `lau
 
 ## This repo
 
-Tool count 12–28. Edit `telegram_ads_mcp/PLAYBOOK.md` and run `python scripts/sync_skills.py` (skills `references/` are generated from these sections). Root `AGENTS.md` is the short development index, not a playbook copy. No `.env` / `VERIFY.md` in git. Bilingual README + pytest/CI checklist: [CONTRIBUTING.md](../CONTRIBUTING.md).
+Tool count 12–28. After editing this file, copy to `telegram_ads_mcp/AGENTS.md` and run `python scripts/sync_skills.py` (skills `references/` are generated from these sections). No extra markdown/reports. No `.env` / `VERIFY.md` in git. Bilingual README + pytest/CI checklist: [CONTRIBUTING.md](../CONTRIBUTING.md).

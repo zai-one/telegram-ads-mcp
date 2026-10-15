@@ -9,16 +9,22 @@ import logging
 import os
 import sys
 from pathlib import Path
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
+import anyio
 from mcp.server import MCPServer
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 
-from telegram_ads_mcp import __version__, guide
-from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError
+from telegram_ads_mcp import __version__, guide, lazy_loading
+from telegram_ads_mcp.client import AuthError, ConfigError, StarsCabinetError, stars_enabled
 from telegram_ads_mcp.descriptions import meta
 from telegram_ads_mcp.gate import attach_gate, gated
+from telegram_ads_mcp.router import instructions as router_instructions
 from telegram_ads_mcp.parse import (
+    charts_to_csv,
+    check_amounts,
+    parse_amount,
     compact,
     access_denied_payload,
     channel_langs_conflict,
@@ -62,21 +68,7 @@ mcp = MCPServer(
     name="telegram-ads-mcp",
     title="Telegram Ads",
     version=__version__,
-    instructions=(
-        "telegram-ads MCP: ads.telegram.org TON cabinet, billed in Gram (say Gram or TON). "
-        "Start: check_session, then get_account (cabinet, currency, write_gate). "
-        "Never guess IDs: use search_targets / get_targeting_reference. "
-        "Money: ads are created on_hold; launch_ad spends budget and sends review, never activates. "
-        "Writes: TG_ADS_WRITE_GATE (default confirm) - spend/destructive need confirm=true after the "
-        "user says yes; confirm_hash tools are two-step (never invent hashes). "
-        "Auth: cookies live only in .env, never in chat; after the user edits .env call reload_session. "
-        "Stars cabinet: list_accounts then select_account. "
-        "Playbooks: skills telegram-ads-launch-campaign, telegram-ads-review-account, "
-        "telegram-ads-diagnose-ad (same as prompts launch-campaign, review-account, diagnose-ad); "
-        "details in ads://guide/index, full text ads://playbook. "
-        "Errors: retry only if retryable; follow hint. Cabinet work vs this git repo: do not mix."
-        + (f" {_STARTUP_UPDATE_HINT}" if _STARTUP_UPDATE_HINT else "")
-    ),
+    instructions=router_instructions(_STARTUP_UPDATE_HINT or ""),
     website_url="https://github.com/zai-one/telegram-ads-mcp",
 )
 
@@ -87,6 +79,68 @@ def _ok(data: dict[str, Any] | None = None, **extra: Any) -> dict[str, Any]:
         out.update(data)
     out.update(extra)
     return out
+
+
+async def _money_error(client: Any, target_type: str | None = None, **amounts: str | None) -> dict | None:
+    """Cabinet-aware amount check: Stars take whole numbers and no user targeting; EUR/Gram 2 decimals."""
+    cabinet = await client.require_supported_cabinet()
+    if not isinstance(cabinet, dict):
+        return None
+    if cabinet.get("cabinet") == "stars" and target_type == "users":
+        return attach_gate({"ok": False, "code": "unsupported_in_cabinet", "cabinet": "stars",
+                            "error": "Stars cabinets cannot target users; use channels or bots.",
+                            "retryable": False})
+    problem = check_amounts(cabinet, **amounts)
+    if problem:
+        return attach_gate({"ok": False, "code": "invalid_amount", "cabinet": cabinet.get("cabinet"),
+                            "currency": cabinet.get("currency"), "error": problem, "retryable": False})
+    return None
+
+
+async def _read_budget(client: Any, ad_id: str) -> tuple[Decimal | None, Any]:
+    """Fresh (uncached) `budget` of an ad as a Decimal, or (None, raw) when unreadable.
+
+    Read strictly: a number, or a plain decimal string. Anything else ("1,234", "€5", None) is
+    refused rather than guessed, because reading it too low would make an increase too large.
+    """
+    card = await client.get_ad(ad_id, fresh=True)
+    ad = card.get("ad") if isinstance(card, dict) and isinstance(card.get("ad"), dict) else {}
+    raw = ad.get("budget")
+    text = parse_amount(raw) if raw is not None else None
+    if text is None:
+        return None, raw
+    try:
+        return Decimal(text), text
+    except (InvalidOperation, ValueError):
+        return None, raw
+
+
+async def _budget_delta(
+    client: Any, ad_id: str, target: str
+) -> tuple[str | None, str | None, str | None]:
+    """(action, amount, current) that moves the ad's `budget` to `target`; (None, reason, None) when unknown."""
+    current, raw = await _read_budget(client, ad_id)
+    unreadable = f"Current budget of ad {ad_id} is not readable ({raw!r}); use budget_action."
+    wanted_text = parse_amount(target)
+    if current is None or wanted_text is None:
+        return None, unreadable, None
+    delta = Decimal(wanted_text) - current
+    if delta == 0:
+        return "none", f"Budget already equals {target}; nothing sent.", raw
+    return ("increase" if delta > 0 else "decrease"), format(abs(delta).normalize(), "f"), raw
+
+
+def _call_failed(result: Any) -> bool:
+    return not isinstance(result, dict) or result.get("ok") is False or bool(result.get("error"))
+
+
+def _money_lock(client: Any) -> Any:
+    """Per-client lock for money read-modify-write (one process only; other writers are caught by readback)."""
+    lock = getattr(client, "money_lock", None)
+    if not isinstance(lock, anyio.Lock):
+        lock = anyio.Lock()
+        client.money_lock = lock
+    return lock
 
 
 async def _client_or_fail(require_supported: bool = True):
@@ -158,7 +212,7 @@ def launch_campaign_prompt(
     return (
         f"Launch a {target_type} ad promoting {promote_url}.\n"
         "1. check_session — if ok=false, offer INSTALL.md DevTools steps; they write .env (never paste into chat); then reload_session.\n"
-        "2. get_account — TON cabinet, GRAM balance. Abort on Stars. Note write_gate.\n"
+        "2. get_account — cabinet (TON/EUR/Stars), currency and money rules. Note write_gate.\n"
         "3. search_targets to resolve IDs.\n"
         "4. check_ad_post on the promote_url + text.\n"
         "5. launch_ad (on_hold + budget + review, does not activate). Pass confirm=true if write_gated.\n"
@@ -171,7 +225,7 @@ def launch_campaign_prompt(
 def review_account_prompt() -> str:
     return (
         "Read-only review of the Telegram Ads cabinet. Do not create, edit, or spend.\n"
-        "1. get_account — TON cabinet, currency=GRAM. Abort if Stars. Note write_gate.\n"
+        "1. get_account — cabinet and currency (GRAM/EUR/XTR). Note write_gate.\n"
         "2. get_ads(status=active) and get_ads(status=on_hold). Use list spent/views/ctr; do not fetch stats for every ad.\n"
         "3. Pick at most 5 problem ads (Active with 0 views, or Stopped with leftover daily_budget, or CTR crash).\n"
         "4. For each: get_ad_stats(period=5min) then period=day if needed. Compare summary.spend to list spent (same order of magnitude). Spend is already scaled — do not divide.\n"
@@ -201,7 +255,7 @@ async def check_session() -> dict[str, Any]:
     """Ping the current ads.telegram.org session.
 
     Returns owner_id, cabinet (ton/eur/stars), currency, balance.
-    Does not return api_hash or cookies. Stars cabinets are reported but not used.
+    Does not return api_hash or cookies. TON and EUR cabinets are supported; Stars only with TG_ADS_STARS=on.
     If ok=false with code=auth, offer INSTALL.md DevTools steps; they write .env (never paste into chat); then reload_session.
     """
     client, err = await _client_or_fail(require_supported=False)
@@ -247,7 +301,7 @@ async def reload_session() -> dict[str, Any]:
 
 @mcp.tool(annotations=READ, **meta("list_accounts"))
 async def list_accounts() -> dict[str, Any]:
-    """List ad cabinets for this Telegram login. Works even on a Stars cabinet so you can switch away."""
+    """List ad cabinets for this Telegram login. Works on any cabinet (TON, EUR, Stars)."""
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return err
@@ -272,13 +326,13 @@ async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]
     try:
         client = await switch_account(owner_id)
         info = attach_gate(await client.get_account())
-        if info.get("cabinet") == "stars":
+        if info.get("cabinet") == "stars" and not stars_enabled():
             return attach_gate({
                 "ok": False,
                 "code": "stars_cabinet",
                 "cabinet": "stars",
                 "owner_id": owner_id,
-                "error": "Stars cabinet selected. This server refuses to run ads on Stars. Pick a Gram (TON) or EUR cabinet.",
+                "error": "Stars cabinet selected; Stars support is opt-in. Set TG_ADS_STARS=on or pick a Gram/EUR cabinet.",
                 "accounts_hint": "Call list_accounts and select_account with a Gram/TON or EUR owner_id.",
             })
         return info
@@ -288,7 +342,7 @@ async def select_account(owner_id: str, confirm: bool = False) -> dict[str, Any]
 
 @mcp.tool(annotations=READ, **meta("get_account"))
 async def get_account() -> dict[str, Any]:
-    """Current cabinet card: owner_id, cabinet (ton/eur/stars), currency (GRAM/EUR), balance, write_gate."""
+    """Current cabinet card: owner_id, cabinet (ton/eur/stars), currency (GRAM/EUR/XTR), money, balance, write_gate."""
     client, err = await _client_or_fail(require_supported=False)
     if err:
         return err
@@ -431,6 +485,10 @@ async def create_ad(
     client, err = await _client_or_fail()
     if err:
         return err
+    money_err = await _money_error(client, target_type=target_type, cpm=cpm, budget=budget,
+                                   daily_budget=daily_budget)
+    if money_err:
+        return money_err
     params: dict[str, Any] = {
         "owner_id": client.owner_id,
         "title": title,
@@ -506,6 +564,7 @@ async def edit_ad(
     audience_id: str | None = None,
     budget_action: Literal["increase", "decrease"] | None = None,
     budget_amount: str | None = None,
+    budget_target: str | None = None,
     activate_date: str | None = None,
     deactivate_date: str | None = None,
     schedule: str | None = None,
@@ -518,11 +577,16 @@ async def edit_ad(
     picture=True shows the avatar, picture=False turns it off (sends picture=0).
     clear_media=True removes attached photo/video.
     budget_action + budget_amount changes total budget (increase resumes a depleted Stopped ad).
+    budget_target sets the ad's `budget` (the value get_ad / get_ads report) to an absolute value: the
+    server reads it fresh, sends the increase/decrease difference, reads it back and returns
+    `budget_change` (current, target, action, amount, after); a read-back other than the target
+    returns `budget_mismatch` (do not re-send). Equal budget skips only the budget change; the other
+    fields are still sent. Do not combine with budget_action.
     Targeting cannot be changed after creation — clone_ad instead.
     confirm: required to activate or change budget unless TG_ADS_WRITE_GATE=open.
     """
     going_live = active is not None and map_status(active) == "1"
-    spend = going_live or bool(budget_action)
+    spend = going_live or bool(budget_action) or budget_target is not None
     blocked = _gate(
         "spend" if spend else "write",
         confirm,
@@ -535,6 +599,7 @@ async def edit_ad(
             "active": active,
             "budget_action": budget_action,
             "budget_amount": budget_amount,
+            "budget_target": budget_target,
         },
     )
     if blocked:
@@ -542,13 +607,26 @@ async def edit_ad(
     client, err = await _client_or_fail()
     if err:
         return err
+    money_err = await _money_error(
+        client, cpm=cpm, daily_budget=daily_budget, budget_amount=budget_amount, budget_target=budget_target
+    )
+    if money_err:
+        return money_err
+    if budget_target is not None and (budget_action or budget_amount):
+        return attach_gate({"ok": False, "code": "invalid_args", "retryable": False,
+                            "error": "Pass budget_target or budget_action+budget_amount, not both."})
     results: dict[str, Any] = {}
-    if budget_action and budget_amount:
-        method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"
-        results["budget"] = await client.call(
-            method,
-            {"owner_id": client.owner_id, "ad_id": ad_id, "amount": budget_amount},
-        )
+    no_change: dict[str, Any] | None = None
+    if budget_target is not None or (budget_action and budget_amount):
+        # Read, send and read back under one lock, so two calls in this process cannot both
+        # add the same difference. Money calls are never auto-retried (see client.MONEY_METHODS).
+        async with _money_lock(client):
+            failed = await _apply_budget(client, ad_id, budget_target, budget_action, budget_amount, results)
+        if failed is not None:
+            if failed.get("code") == "no_change":
+                no_change = failed
+            else:
+                return failed
     params: dict[str, Any] = {
         "owner_id": client.owner_id,
         "ad_id": ad_id,
@@ -587,10 +665,66 @@ async def edit_ad(
 
     if strip_empty(editable, keep=keep) or keep:
         results["edit"] = await client.call("editAd", params, keep=keep or None)
+    elif no_change is not None:
+        return no_change
     if not results:
         return {"ok": False, "error": "No fields to update."}
+    if no_change is not None:
+        results["budget_change"] = None
+        results["budget_note"] = no_change["note"]
     results["ok"] = True
     return results
+
+
+async def _apply_budget(
+    client: Any,
+    ad_id: str,
+    budget_target: str | None,
+    budget_action: str | None,
+    budget_amount: str | None,
+    results: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Send the budget change into `results`; return a payload that stops edit_ad, else None.
+
+    A returned `no_change` payload only skips the budget; the other edit_ad fields still go out.
+    """
+    if budget_target is not None:
+        budget_action, budget_amount, current = await _budget_delta(client, ad_id, budget_target)
+        if budget_action == "none":
+            return attach_gate({"ok": True, "code": "no_change", "budget_change": None, "note": budget_amount})
+        if budget_action is None:
+            return attach_gate({"ok": False, "code": "budget_unknown", "retryable": False,
+                                "error": budget_amount or "Current budget unknown; use budget_action."})
+        change = {"current": current, "target": budget_target, "action": budget_action, "amount": budget_amount}
+        # The computed difference is what gets sent: it must fit the cabinet rules too
+        # (e.g. current 0.123456 -> target 1 would send 0.876544).
+        delta_err = await _money_error(client, budget_difference=budget_amount)
+        if delta_err:
+            delta_err["budget_change"] = change
+            return delta_err
+        # Report the computed difference so the spend is visible, not only the absolute target.
+        results["budget_change"] = change
+    method = "decrAdBudget" if budget_action == "decrease" else "incrAdBudget"
+    sent = await client.call(method, {"owner_id": client.owner_id, "ad_id": ad_id, "amount": budget_amount})
+    results["budget"] = sent
+    if budget_target is None:
+        if _call_failed(sent):
+            return attach_gate({"ok": False, "code": (sent.get("code") if isinstance(sent, dict) else None)
+                                or "error", "retryable": False, "error": "Budget change failed; other fields not sent.",
+                                "edit_skipped": True, **results})
+        return None
+    # Read back: a stale read, another writer (cabinet UI, another process) or a lost reply would
+    # otherwise leave a wrong budget behind a success. Only the target value counts as success.
+    after, after_raw = await _read_budget(client, ad_id)
+    results["budget_change"]["after"] = after_raw
+    if after is None or after != Decimal(parse_amount(budget_target) or "0"):
+        return attach_gate({
+            "ok": False, "code": "budget_mismatch", "retryable": False, "edit_skipped": True,
+            "error": f"Budget of ad {ad_id} reads {after_raw!r} after the change, not {budget_target}.",
+            "hint": "Do not re-send. Check get_ad, then correct with budget_action if needed.",
+            **results,
+        })
+    return None
 
 
 @mcp.tool(annotations=DEST, **meta("delete_ad"))
@@ -720,6 +854,12 @@ async def launch_ad(
     client, err = await _client_or_fail()
     if err:
         return err
+    # `budget` is spent below via incrAdBudget, after create_ad(budget="0"): check it here, before
+    # checkAdPost, or a malformed spend amount would never reach the cabinet money rules.
+    money_err = await _money_error(client, target_type=target_type, cpm=cpm, budget=budget,
+                                   daily_budget=daily_budget)
+    if money_err:
+        return money_err
     steps: dict[str, Any] = {}
     steps["validate"] = await client.call(
         "checkAdPost",
@@ -766,6 +906,11 @@ async def launch_ad(
             "incrAdBudget",
             {"owner_id": client.owner_id, "ad_id": str(ad_id), "amount": budget},
         )
+        if _call_failed(steps["budget"]):
+            # Do not report a launch as ok (or send it to review) when its budget did not land.
+            return {"ok": False, "ad_id": str(ad_id), "error": "Budget step failed; review not sent.",
+                    "code": steps["budget"].get("code") if isinstance(steps["budget"], dict) else "error",
+                    "retryable": False, "steps": steps}
     if not skip_review:
         steps["review"] = await client.call(
             "sendTargetToReview",
@@ -854,7 +999,7 @@ async def upload_media(
 async def get_ad_stats(
     ad_id: str,
     period: Literal["5min", "day"] = "5min",
-    detail: Literal["summary", "full"] = "summary",
+    detail: Literal["summary", "full", "csv"] = "summary",
 ) -> dict[str, Any]:
     """Time-bucketed stats plus CTR / CPC / actual CPM.
 
@@ -864,13 +1009,19 @@ async def get_ad_stats(
     `summary.spend` is already scaled (Gram on a TON cabinet); `spend_already_scaled`
     is true; `spend_scale` stays for compatibility. Do not divide again.
     `charts.budget` series/totals are scaled the same way (`values_already_scaled`).
-    Prefer `summary.spend`. No CSV tool — if you save a file, gitignored `reports/`.
+    Prefer `summary.spend`. detail=csv returns `csv` (time + every chart series) instead of
+    `charts`; if you save it, use gitignored `reports/`.
     detail=summary (default) omits the per-bucket `charts`; detail=full returns them.
     """
     client, err = await _client_or_fail()
     if err:
         return err
     stats = await client.get_ad_stats(ad_id, period=period)
+    if detail == "csv" and isinstance(stats, dict) and isinstance(stats.get("charts"), dict):
+        csv_text = charts_to_csv(stats["charts"])
+        stats = {k: v for k, v in stats.items() if k != "charts"}
+        stats["csv"] = csv_text
+        return stats
     if detail == "summary" and isinstance(stats, dict) and "charts" in stats:
         stats = {k: v for k, v in stats.items() if k != "charts"}
         stats["charts_omitted"] = True
@@ -1116,7 +1267,7 @@ async def manage_funds(
     additional_comment: str = "",
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Funds. Amount is a Gram (or EUR) string.
+    """Funds. Amount is a string in the cabinet unit, checked against its rules (invalid_amount).
 
     list/search = lookup, not gated.
     add = top-up *request* (not instant credit).
@@ -1134,6 +1285,14 @@ async def manage_funds(
     client, err = await _client_or_fail()
     if err:
         return err
+    if action in {"add", "transfer", "withdraw"}:
+        # Same cabinet amount rules as the ad money fields: never send "1.5" Stars or "1e3".
+        if amount in (None, ""):
+            return attach_gate({"ok": False, "code": "invalid_amount", "retryable": False,
+                                "error": f"amount is required for action={action}"})
+        money_err = await _money_error(client, amount=amount)
+        if money_err:
+            return money_err
     cabinet = await client.detect_cabinet()
     currency = cabinet.get("currency")
     if action == "add":
@@ -1201,6 +1360,10 @@ async def log_out(confirm: bool = False) -> dict[str, Any]:
     if err:
         return err
     return await client.call("logOut", {})
+
+
+# Optional lazy tool loading (TG_ADS_TOOL_LOADING=lazy): defer non-core tools until enabled.
+LAZY_LISTED = lazy_loading.install(mcp)
 
 
 # ── entry ────────────────────────────────────────────────────────────

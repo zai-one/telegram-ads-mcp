@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.5.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.5.0"></a>
+  <a href="https://github.com/zai-one/telegram-ads-mcp/releases/tag/v0.6.0"><img src="https://img.shields.io/github/v/release/zai-one/telegram-ads-mcp" alt="v0.6.0"></a>
   <a href="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml"><img src="https://github.com/zai-one/telegram-ads-mcp/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-555555" alt="MCP 2.x"></a>
@@ -41,20 +41,35 @@
 
 У Telegram нет публичного advertiser API. Сервер работает от сессии ads.telegram.org (`stel_token` / `stel_ssid` в gitignore `.env`) и отдаёт 26 MCP tools, плюс `ads://playbook` и `ads://account`.
 
-Кабинет **TON**, валюта **Gram**. Гео (`target_type=users`) работает. Stars — отказ (`code: stars_cabinet`). Неофициально, не Telegram.
+Кабинеты: **TON** (валюта **Gram**), **EUR** и **Stars** (только целые суммы, без таргетинга на пользователей; включаются только `TG_ADS_STARS=on`). `get_account` отдаёт правила `money`; неверная сумма отклоняется до вызова API. Неофициально, не Telegram.
 
 Писать в кабинет: `.env` `TG_ADS_WRITE_GATE=strict|confirm|open` (по умолчанию `confirm`). Spend/destructive без `confirm=true` не пройдут, пока не `open`. Блок: `code: write_gated` с `tool` / `class` / `would_send` (что собирались отправить, без секретов) и `sent: false` — это не dry-run платформы.
 
 ## Почему этот MCP
 
+- Ленивая загрузка инструментов (опционально): `TG_ADS_TOOL_LOADING=lazy` (или выбор в мастере настройки) — старт с небольшим ядром, наборы включаются по запросу; см. [Ленивая загрузка инструментов](#ленивая-загрузка-инструментов).
 - Безопасность бюджета: объявления создаются `on_hold`; траты проходят через шлюз записи, который показывает `get_account`.
 - Справочники таргетинга и `search_targets`, чтобы агент не угадывал ID; 3 промпта, 3 ресурса, включая `ads://playbook`.
 - Cookie сессии хранятся в `.env`, не в чате.
 - Другие Telegram Ads MCP на GitHub: [Free-cat/telegram_ads_mcp](https://github.com/Free-cat/telegram_ads_mcp) (14 инструментов), [reputasyon/telegram-ads-mcp](https://github.com/reputasyon/telegram-ads-mcp) (8).
 
+## Ленивая загрузка инструментов
+
+Ленивая загрузка инструментов (опционально): `TG_ADS_TOOL_LOADING=lazy` стартует с небольшим ядром и `tg_ads_enable_toolsets`, остальные наборы включаются по запросу (`tools/list_changed`). Стоимость старта (tools/list + instructions, ≈символы/4): eager ≈7262 токенов, lazy ≈1748 токенов (−76%). По умолчанию `eager` — без изменений; если клиент не поддерживает `tools/list_changed`, оставьте `eager` или переподключитесь после включения. Область: включение действует на весь процесс (the MCP SDK MCPServer не умеет видимость инструментов по сессиям). В stdio это один клиент; в общем HTTP включённые одним клиентом наборы видны всем клиентам процесса (каждый вызов по-прежнему проходит свои проверки), поэтому для общего HTTP используйте `eager`.
+
+Клиенты и `notifications/tools/list_changed` (проверено по официальной документации, changelog или заявлениям мейнтейнеров, 2026-10):
+
+| Клиент | `tools/list_changed` | Источник |
+|---|---|---|
+| Claude Code | Да (интерактивно: tools, prompts, resources; `-p`/Agent SDK: только tools) | [docs: Dynamic tool updates](https://code.claude.com/docs/en/mcp) |
+| VS Code (GitHub Copilot) | Да (dynamic tool discovery); новые инструменты могут стать доступны агенту только со следующего хода | [docs](https://code.visualstudio.com/api/extension-guides/ai/mcp), [#303012](https://github.com/microsoft/vscode/issues/303012) |
+| Gemini CLI | Да (обновляет реестр инструментов) | [PR #14375](https://github.com/google-gemini/gemini-cli/pull/14375), [PR #21050](https://github.com/google-gemini/gemini-cli/pull/21050) |
+| Cursor | Ненадёжно: регрессия в 3.12.x подтверждена командой Cursor; после включения перезапустите Cursor | [forum](https://forum.cursor.com/t/mcp-server-regression-does-not-reload-tools-disconnect-does-nothing-ignores-mcp-json-changes-etc/166216) |
+| Claude Desktop, Windsurf, Codex CLI, Cline, Zed, Continue | Не проверено: официальных данных нет; используйте `eager` или переподключитесь после включения | — |
+
 ## Поддержка и обновления
 
-- Проект активно поддерживает ZAI.ONE: текущая версия 0.5.0; изменения в [CHANGELOG.md](CHANGELOG.md) и [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
+- Проект активно поддерживает ZAI.ONE: текущая версия 0.6.0; изменения в [CHANGELOG.md](CHANGELOG.md) и [Releases](https://github.com/zai-one/telegram-ads-mcp/releases).
 - Встроенная проверка обновлений: попросите ассистента вызвать `check_update` (публичный GitHub API, без учётных данных, с кэшем; ничего не устанавливается автоматически; отключение: `TG_ADS_DISABLE_UPDATE_CHECK=1`).
 - Следует актуальным практикам MCP: аннотации инструментов (read-only / destructive), `instructions` сервера, промпты и ресурсы, структурированные ошибки с подсказками, секреты не попадают в ответы, бюджет токенов описаний проверяется в тестах.
 - CI прогоняет тесты на Linux и Windows для каждого pull request.
@@ -96,16 +111,16 @@ Cookies живут только в файле `.env` на диске (не в `e
 
 ```bash
 # Claude Code: только MCP
-claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0 telegram-ads-mcp
+claude mcp add telegram-ads --env TG_ADS_ENV_FILE=/path/to/telegram-ads.env -- uvx --from git+https://github.com/zai-one/telegram-ads-mcp@v0.6.0 telegram-ads-mcp
 # Claude Code: плагин = MCP + skills (запуск / обзор / диагностика)
 /plugin marketplace add zai-one/telegram-ads-mcp
 /plugin install telegram-ads@telegram-ads-mcp
 ```
 
-Cursor: [установка в один клик](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcEB2MC41LjAiLCJ0ZWxlZ3JhbS1hZHMtbWNwIl0sImVudiI6eyJUR19BRFNfRU5WX0ZJTEUiOiIvcGF0aC90by90ZWxlZ3JhbS1hZHMuZW52In19) или `.cursor/mcp.json`:
+Cursor: [установка в один клик](cursor://anysphere.cursor-deeplink/mcp/install?name=telegram-ads&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL3phaS1vbmUvdGVsZWdyYW0tYWRzLW1jcEB2MC42LjAiLCJ0ZWxlZ3JhbS1hZHMtbWNwIl0sImVudiI6eyJUR19BRFNfRU5WX0ZJTEUiOiIvcGF0aC90by90ZWxlZ3JhbS1hZHMuZW52In19) или `.cursor/mcp.json`:
 
 ```json
-{"mcpServers": {"telegram-ads": {"command": "uvx", "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0", "telegram-ads-mcp"], "env": {"TG_ADS_ENV_FILE": "/path/to/telegram-ads.env"}}}}
+{"mcpServers": {"telegram-ads": {"command": "uvx", "args": ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.6.0", "telegram-ads-mcp"], "env": {"TG_ADS_ENV_FILE": "/path/to/telegram-ads.env"}}}}
 ```
 
 Codex `~/.codex/config.toml`:
@@ -113,7 +128,7 @@ Codex `~/.codex/config.toml`:
 ```toml
 [mcp_servers.telegram-ads]
 command = "uvx"
-args = ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.5.0", "telegram-ads-mcp"]
+args = ["--from", "git+https://github.com/zai-one/telegram-ads-mcp@v0.6.0", "telegram-ads-mcp"]
 env = { TG_ADS_ENV_FILE = "/path/to/telegram-ads.env" }
 ```
 
@@ -148,7 +163,7 @@ Skills: `telegram-ads-launch-campaign`, `telegram-ads-review-account`, `telegram
 
 Поддержка **не гарантируется**. Issues читаю когда могу.
 
-Нужны кабинеты **EUR** или **Stars** (здесь их нет в live)? Напишите в Telegram: [t.me/zai_one](https://t.me/zai_one). Можно обсудить доступ. Cookies в issue не класть.
+EUR и Stars проверены на фикстурах; нашли расхождение на живом кабинете? Напишите в Telegram: [t.me/zai_one](https://t.me/zai_one). Cookies в issue не класть.
 
 ## Кто делает этот MCP
 
