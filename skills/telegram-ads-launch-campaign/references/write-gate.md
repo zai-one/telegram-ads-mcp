@@ -1,4 +1,4 @@
-<!-- generated from AGENTS.md by scripts/sync_skills.py; do not edit -->
+<!-- generated from telegram_ads_mcp/PLAYBOOK.md by scripts/sync_skills.py; do not edit -->
 
 ## Write gate (`.env`)
 

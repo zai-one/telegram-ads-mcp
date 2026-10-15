@@ -71,6 +71,31 @@ def test_guide_topics_resolve() -> None:
     assert "ads://guide/errors" in guide.index()
 
 
+def test_runtime_resources_use_packaged_playbook(tmp_path, monkeypatch) -> None:
+    expected = (ROOT / "telegram_ads_mcp" / "PLAYBOOK.md").read_text(encoding="utf-8")
+    # A client may start the server inside an unrelated repository.
+    (tmp_path / "AGENTS.md").write_text("development instructions only", encoding="utf-8")
+    (tmp_path / "PLAYBOOK.md").write_text("unrelated playbook", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert guide.playbook() == expected
+    assert server_mod.playbook_resource() == expected
+    assert server_mod.guide_index_resource() == guide.index()
+    for name in guide.TOPICS:
+        assert server_mod.guide_resource(name) == guide.topic(name)
+    assert guide.index() in server_mod.guide_resource("unknown")
+
+
+def test_missing_playbook_never_serves_development_instructions(tmp_path, monkeypatch) -> None:
+    package = tmp_path / "telegram_ads_mcp"
+    package.mkdir()
+    (tmp_path / "AGENTS.md").write_text("root development instructions", encoding="utf-8")
+    (package / "AGENTS.md").write_text("legacy package instructions", encoding="utf-8")
+    monkeypatch.setattr(guide, "PLAYBOOK_PATH", package / "PLAYBOOK.md")
+    assert guide.playbook() == "PLAYBOOK.md is missing from the install."
+    assert server_mod.playbook_resource() == "PLAYBOOK.md is missing from the install."
+    assert guide.topic("auth") is None
+
+
 def test_skill_references_in_sync() -> None:
     proc = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "sync_skills.py"), "--check"],

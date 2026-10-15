@@ -2,7 +2,7 @@
 
 Thin MCP wrapper over the `ads.telegram.org` internal API. Keep it small.
 
-A future campaign-setup HTTP/job service is **out of this repository**. Contracts live in `telegram_ads_mcp/schemas/` (shipped next to `AGENTS.md`) so that service can stay a thin caller of these tools. Do not add an app tree, a bidding bot, or more than 28 tools here.
+A future campaign-setup HTTP/job service is **out of this repository**. Contracts live in `telegram_ads_mcp/schemas/` (shipped next to `PLAYBOOK.md`) so that service can stay a thin caller of these tools. Do not add an app tree, a bidding bot, or more than 28 tools here.
 
 This project is **not** MIT: it uses LicenseRef-ZAI-ONE 2.0 (source-available). Install and use it freely against your own cabinet. Issues and pull requests are welcome; by submitting a pull request you license your contribution to ZAI.ONE as described in [LICENSE](LICENSE). Copying code into other projects, redistribution, embedding in other products or a competing server require written permission. If something is missing or broken, [open an issue](https://github.com/zai-one/telegram-ads-mcp/issues/new/choose). Support is not guaranteed.
 
@@ -24,19 +24,20 @@ uv run telegram-ads-mcp   # stdio
 | `telegram_ads_mcp/parse.py` | HTML/JSON extraction |
 | `telegram_ads_mcp/preview.py` | PNG card |
 | `telegram_ads_mcp/gate.py` | `TG_ADS_WRITE_GATE` (`strict` / `confirm` / `open`) |
-| `AGENTS.md` | Agent playbook (also `ads://playbook`) |
+| `AGENTS.md` | Short maintenance index; task-specific engineering guides are linked, not auto-imported |
+| `telegram_ads_mcp/PLAYBOOK.md` | Canonical client playbook (`ads://playbook` and `ads://guide/{topic}`); shipped in the wheel |
 | `telegram_ads_mcp/schemas/` | JSON Schema for campaign brief / review artifact / stats dump (wheel package data). Not a SaaS. |
 | `scripts/check_security.py` | Local leak scan; `--issue` prints `gh issue create` (does not open) |
 | `CLAUDE.md` | Claude Code memory; must contain a bare `@AGENTS.md` line (not a Markdown link) |
 | `server.json` | MCP registry descriptor (`io.github.zai-one/telegram-ads-mcp`) |
 
-Client playbook is `AGENTS.md`; local project notes go in `AGENTS.local.md` (gitignored, never cookies).
+Client playbook is `telegram_ads_mcp/PLAYBOOK.md`; edit it directly and run `python scripts/sync_skills.py` to regenerate skill references. Keep detailed usage instructions out of `AGENTS.md` and `CLAUDE.md` so development sessions load only the short index. Local project notes go in `AGENTS.local.md` (gitignored, never cookies).
 
 Docstrings are the agent-facing spec. Money and IDs are strings. Multi-IDs are semicolon-separated. Never log cookies or `api_hash`. Never paste cookies into issues.
 
 ## File an Issue
 
-Client ritual (offer → operator yes → draft, no cookies): [AGENTS.md](AGENTS.md) **Found a bug → Issue**. Form: https://github.com/zai-one/telegram-ads-mcp/issues/new/choose
+Client ritual (offer → operator yes → draft, no cookies): [PLAYBOOK.md](telegram_ads_mcp/PLAYBOOK.md) **Found a bug → Issue**. Form: https://github.com/zai-one/telegram-ads-mcp/issues/new/choose
 
 Do not duplicate that ritual here. Maintainer scan before commit: `uv run python scripts/check_security.py`. A draft: `uv run python scripts/check_security.py --issue draft.md` prints `gh issue create` (does not open). Do not attach `.env` or DevTools screenshots.
 
@@ -47,14 +48,14 @@ Do not duplicate that ritual here. Maintainer scan before commit: `uv run python
 3. `INSTALL.md` still clones `zai-one/telegram-ads-mcp`, stars the repo, documents client config files (Cursor / Claude / VS Code `servers` / Codex).
 4. User-facing copy may say **Gram**, **TON**, or **Gram (TON)**. Keep HTML/CSS `currency-ton` in parse tests — that widget is the Gram/TON cabinet. `server.json` description ≤ 100 chars, no fake `packages`.
 5. `.env` / `VERIFY.md` / `previews/` / `reports/` stay untracked. `git status` before push.
-6. `CLAUDE.md` has a line that is exactly `@AGENTS.md`. After editing `AGENTS.md`, copy bytes to `telegram_ads_mcp/AGENTS.md`.
+6. `CLAUDE.md` imports only the short root `AGENTS.md`. After editing `telegram_ads_mcp/PLAYBOOK.md`, run `python scripts/sync_skills.py` and `python scripts/sync_skills.py --check`; no mirrored `AGENTS.md` inside the package.
 7. Keep the `tg_ads_mcp` shim + script `tg-ads-mcp`. Tool count 12–28. Do not restore `update_cookies` / cookie args.
 
 ## CI
 
 `.github/workflows/tests.yml`: Ubuntu+Windows × py3.10/3.13. CI uses **pip** + `python scripts/check_security.py`, then `python -m pytest tests -q`, then `from telegram_ads_mcp.server import mcp` (name `telegram-ads-mcp`) and `import tg_ads_mcp` (version match). If you rename a package or entrypoint, add a pytest import for what CI runs — local green is not enough.
 
-Local: `uv run pytest -q` and `uv run python scripts/check_security.py`.
+Local: `uv run pytest -q` and `uv run python scripts/check_security.py`. CI also builds a wheel with `python -m pip wheel --no-deps . --wheel-dir dist` and runs `python scripts/check_wheel.py dist/*.whl` to verify installed playbook and guide resources without the checkout.
 
 ## Version
 

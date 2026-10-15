@@ -1,6 +1,6 @@
-# AGENTS.md — Playbook
+# Telegram Ads — Client playbook
 
-MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook` (this file); one section at a time: `ads://guide/{topic}` (`ads://guide/index`). Skills: `skills/`. No YAML frontmatter. Claude Code: `CLAUDE.md` has a bare `@AGENTS.md` line. Install/star: [INSTALL.md](INSTALL.md). Repo/CI: [CONTRIBUTING.md](CONTRIBUTING.md).
+MCP: `telegram-ads-mcp` (ads.telegram.org). Resource `ads://playbook` (this file); one section at a time: `ads://guide/{topic}` (`ads://guide/index`). Skills: `skills/`. No YAML frontmatter. Install/star: [installation guide](https://github.com/zai-one/telegram-ads-mcp/blob/master/INSTALL.md). Repo/CI: [contribution guide](https://github.com/zai-one/telegram-ads-mcp/blob/master/CONTRIBUTING.md).
 
 ## Currency
 
@@ -128,4 +128,4 @@ Call chain a service would replay: `check_session` → `search_targets` → `lau
 
 ## This repo
 
-Tool count 12–28. After editing this file, copy to `telegram_ads_mcp/AGENTS.md` and run `python scripts/sync_skills.py` (skills `references/` are generated from these sections). No extra markdown/reports. No `.env` / `VERIFY.md` in git. Bilingual README + pytest/CI checklist: [CONTRIBUTING.md](CONTRIBUTING.md).
+Development instructions are in the repository's short AGENTS.md. Edit the packaged PLAYBOOK.md directly, then run `python scripts/sync_skills.py` to regenerate skill references and `python scripts/sync_skills.py --check` to verify them. Keep tool count within 12–28. Never commit cookies, `.env`, `VERIFY.md` or generated reports. See the [contribution guide](https://github.com/zai-one/telegram-ads-mcp/blob/master/CONTRIBUTING.md).

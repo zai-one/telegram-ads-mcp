@@ -1,10 +1,10 @@
 # Backlog
 
-Live checks: [OFFLINE.md](./OFFLINE.md). Playbook: [AGENTS.md](./AGENTS.md).
+Live checks: [OFFLINE.md](./OFFLINE.md). Playbook: [PLAYBOOK.md](./telegram_ads_mcp/PLAYBOOK.md).
 
 ## Improvement / speed (from Gram live read-only)
 
-Done in tree (not a new tool family): Gram balance widget, TON≠EUR when `value=users`, Active/Stopped filter, stats spend ÷1e6 plus echoed request `period` / scaled `charts.budget` / `spend_already_scaled`, `tme_path`/`trg_type` mapping, skip `/account/budget` and `/account/ad/new` when `/account` already has `currency-ton`, `get_targeting_reference` on TON, `AGENTS.md` in the wheel, `hash=` query redaction, JSON `accounts` before chooser hrefs, structured `access_denied` on audience/event.
+Done in tree (not a new tool family): Gram balance widget, TON≠EUR when `value=users`, Active/Stopped filter, stats spend ÷1e6 plus echoed request `period` / scaled `charts.budget` / `spend_already_scaled`, `tme_path`/`trg_type` mapping, skip `/account/budget` and `/account/ad/new` when `/account` already has `currency-ton`, `get_targeting_reference` on TON, `PLAYBOOK.md` in the wheel, `hash=` query redaction, JSON `accounts` before chooser hrefs, structured `access_denied` on audience/event.
 
 Still open:
 
@@ -21,6 +21,6 @@ Still open:
 
 ## Not doing
 
-- Strategy-optimizer / bidding bot as extra tools (rules live in AGENTS.md).
+- Strategy-optimizer / bidding bot as extra tools (rules live in PLAYBOOK.md).
 - Growing past 28 tools or restoring `edit_ad_title` / `save_ads_columns` / `create_user_ad` / cookie args.
 - Campaign-setup SaaS / HTTP job runner in this repo. Contracts (`telegram_ads_mcp/schemas/`) stay here so a later service can be a thin caller.

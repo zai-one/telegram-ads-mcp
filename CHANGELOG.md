@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Separate the short development `AGENTS.md` from the packaged client `telegram_ads_mcp/PLAYBOOK.md`. MCP playbook and topic resource URIs stay the same; skill references are generated from the packaged playbook. Wheel checks verify resources outside the checkout.
+- Migration: the installed `telegram_ads_mcp/AGENTS.md` path is removed; read `telegram_ads_mcp/PLAYBOOK.md` instead. The root `AGENTS.md` now contains development guidance only. `ads://playbook` and `ads://guide/{topic}` keep their existing content and URIs.
+
+
 ## 0.6.0
 
 - Optional lazy tool loading (`TG_ADS_TOOL_LOADING=eager|lazy`, default `eager` = unchanged): lazy lists a small core plus `tg_ads_enable_toolsets` (toolsets with one-line description and token cost); enabling registers the tools at runtime and sends `notifications/tools/list_changed`. `TG_ADS_WRITE_GATE` confirm/confirm_hash gates and Stars opt-in still apply; INSTALL.md setup asks eager vs lazy, `.env.example` documents it. Toolsets: meta (always), ads_read, targeting, ads_write, audiences_events, account_admin. `tools.listChanged` is declared for handshake-era clients; 2026-07-28 clients get the event on `subscriptions/listen`. Startup tokens (tools/list + instructions, ≈chars/4): eager ≈7262, lazy ≈1748. Scope: enablement is process-wide (the MCP SDK MCPServer has no per-session tool visibility). Over stdio that is one client; in shared HTTP mode one client's enabled toolsets are listed for every client of that process (each call still passes its own gates), so use `eager` for shared HTTP. README lazy section lists verified `tools/list_changed` client support with sources.

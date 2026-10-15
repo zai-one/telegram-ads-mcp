@@ -51,7 +51,7 @@ Homepage = "https://github.com/zai-one/telegram-ads-mcp"
 Repository = "https://github.com/zai-one/telegram-ads-mcp"
 Issues = "https://github.com/zai-one/telegram-ads-mcp/issues"
 Documentation = "https://github.com/zai-one/telegram-ads-mcp/blob/master/INSTALL.md"
-Playbook = "https://github.com/zai-one/telegram-ads-mcp/blob/master/AGENTS.md"
+Playbook = "https://github.com/zai-one/telegram-ads-mcp/blob/master/telegram_ads_mcp/PLAYBOOK.md"
 Changelog = "https://github.com/zai-one/telegram-ads-mcp/blob/master/CHANGELOG.md"
 
 [project.scripts]
@@ -62,7 +62,7 @@ tg-ads-mcp = "telegram_ads_mcp.server:main"
 include = ["telegram_ads_mcp*", "tg_ads_mcp*"]
 
 [tool.setuptools.package-data]
-telegram_ads_mcp = ["py.typed", "AGENTS.md", "schemas/*.json"]
+telegram_ads_mcp = ["py.typed", "PLAYBOOK.md", "schemas/*.json"]
 tg_ads_mcp = ["py.typed"]
 
 [tool.pytest.ini_options]
