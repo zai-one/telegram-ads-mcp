@@ -1,6 +1,7 @@
 # telegram-ads-mcp development
 
-<!-- mcp-standard:begin version=1.0.7 sha256=1608a4437ee3c5a0fed8a916c2c4fab3fe2e208a22ddf17953cbbe5f4e904ea7 -->
+<!-- mcp-standard:begin version=1.0.8 sha256=6b82b27a398ff879c3b406af62daf4d87def673721da4f0fe4c5c3e4c80bef56 -->
+- Follow the applicable workspace task and verification protocol when present.
 - Preserve tool names, schemas, defaults and existing local work; document intentional compatibility changes.
 - Enforce principal/account/target scopes and budgets on every path, including new tools, aliases, batches and metadata reads.
 - Keep approval consumption, cost reservation and idempotency atomic; reconcile unknown outcomes before retrying writes or paid calls.

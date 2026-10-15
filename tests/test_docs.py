@@ -219,3 +219,10 @@ def test_contracts_ship_in_wheel() -> None:
     assert "telegram_ads_mcp/schemas/" in contrib
     backlog = (ROOT / "BACKLOG.md").read_text(encoding="utf-8")
     assert "Campaign-setup SaaS" in backlog
+
+
+def test_packaged_playbook_has_no_removed_agents_path():
+    text = (ROOT / "telegram_ads_mcp" / "PLAYBOOK.md").read_text(encoding="utf-8")
+    assert "telegram_ads_mcp/AGENTS.md" not in text
+    assert "](../INSTALL.md)" not in text
+    assert "](../CONTRIBUTING.md)" not in text
